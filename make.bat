@@ -13,4 +13,9 @@ clang -Xclang -flto-visibility-public-std ^
   utils.cpp input.cpp poe.cpp -opoe.exe ^
   > build.log 2>&1
 
+clang -Xclang -flto-visibility-public-std ^
+  -I"%WININC%" -l"%WINLIB%\User32.lib" -l"%WINLIB%\WS2_32.lib" ^
+  utils.cpp input.cpp memu-helper.cpp -omemu-helper.exe ^
+  >> build.log 2>&1
+
 "%WINBIN%\mt.exe" -manifest poe.exe.manifest -outputresource:poe.exe;#1 >> build.log 2>&1
