@@ -31,17 +31,30 @@ void oninput(int key, bool down) {
     }
 }
 
+volatile bool running = true;
+
+// to know when to finish (not quite necessary but graceul shutdown)
+BOOL WINAPI oninterrupt(_In_ DWORD type) {
+    if (running) {
+        running = false;
+        return true;
+    }
+    return false;
+}
+
 // this runs the program forever listening for input
 int main() {
     setup();
     setinputcb(oninput);
+    SetConsoleCtrlHandler(oninterrupt, true);
 
     printf("size: %d x %d\n", width, height);
     printf("program now running\n");
-    while (true) {
+    while (running) {
         Sleep(10);
         stepinput();
     }    
 
+    printf("graceful shutdown\n");
     return 0;
 }

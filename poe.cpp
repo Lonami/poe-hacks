@@ -114,7 +114,6 @@ bool logout() {
 }
 
 int targetkey = 0;
-
 void oninput(int key, bool down) {
     if (down) {
         if (!targetkey) {
@@ -125,14 +124,25 @@ void oninput(int key, bool down) {
     }
 }
 
+volatile bool running = true;
+BOOL WINAPI oninterrupt(_In_ DWORD type) {
+    if (running) {
+        running = false;
+        return true;
+    }
+    return false;
+}
+
 int main() {
     setup();
     setinputcb(oninput);
+    SetConsoleCtrlHandler(oninterrupt, true);
 
     int key;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey;
+        keyfile.close();
     } else {
         printf("no key file detected, press the key to use for logout\n");
         while (!targetkey) {
@@ -142,14 +152,16 @@ int main() {
 
         std::ofstream savekey("poe.key");
         savekey << targetkey;
+        savekey.close();
     }
 
     printf("using key %d, delete poe.key and re-run to change\n", targetkey);
-    while (true) {
+    while (running) {
         Sleep(10);
         stepinput();
-    }    
+    }
 
+    printf("graceful shutdown\n");
     cleanup();
     return 0;
 }
