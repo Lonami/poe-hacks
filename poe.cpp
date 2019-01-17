@@ -117,9 +117,7 @@ bool logout() {
 int targetkey = 0;
 void oninput(int key, bool down) {
     if (down) {
-        if (!targetkey) {
-            targetkey = key;
-        } else if (key == targetkey) {
+        if (key == targetkey) {
             logout();
         }
     }
@@ -139,27 +137,57 @@ int main() {
     setinputcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
-    int key;
+    Color deco, life;
+    int key, decox, decoy, lifex, lifey;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
-        keyfile >> targetkey;
+        keyfile >> targetkey
+                >> deco
+                >> life
+                >> decox >> decoy
+                >> lifex >> lifey
+                ;
+
         keyfile.close();
     } else {
-        printf("no key file detected, press the key to use for logout\n");
-        while (!targetkey) {
-            Sleep(10);
-            stepinput();
-        }
+        printf("-- no key file detected, running first time setup --\n"
+               "press the key to use for logout\n");
+        targetkey = waitinput();
+
+        printf("right click on the life decoration\n");
+        waitpress(VK_RBUTTON);
+        getmouse(decox, decoy);
+        deco = getpixel(decox, decoy);
+
+        printf("right click on low life to auto-dc\n");
+        waitpress(VK_RBUTTON);
+        getmouse(lifex, lifey);
+        life = getpixel(lifex, lifey);
 
         std::ofstream savekey("poe.key");
-        savekey << targetkey;
+        savekey << targetkey << '\n'
+                << deco << '\n'
+                << life << '\n'
+                << decox << ' ' << decoy << '\n'
+                << lifex << ' ' << lifey << '\n'
+                ;
+
         savekey.close();
     }
 
-    printf("using key %d, delete poe.key and re-run to change\n", targetkey);
+    printf("using key %d, checking life at (%d, %d)\n"
+           "delete poe.key and re-run to change this\n",
+           targetkey, lifex, lifey);
+
     while (running) {
         Sleep(10);
         stepinput();
+        if (getpixel(lifex, lifey) != life && getpixel(decox, decoy) == deco) {
+            printf("low life!\n");
+            if (logout()) {
+                Sleep(100); // don't spam logout if it worked
+            }
+        }
     }
 
     printf("graceful shutdown\n");

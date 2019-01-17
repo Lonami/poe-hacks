@@ -1,5 +1,30 @@
 #include "input.h"
 
+#include <cstring>
+#include <Wingdi.h>
+
+bool operator==(const Color& lhs, const Color& rhs) {
+    return memcmp(&lhs, &rhs, sizeof(Color)) == 0;
+}
+
+bool operator!=(const Color& lhs, const Color& rhs) {
+    return memcmp(&lhs, &rhs, sizeof(Color)) != 0;
+}
+
+std::ostream& operator<<(std::ostream& lhs, const Color& rhs) {
+    lhs << (int)rhs.r << ' ' << (int)rhs.g << ' ' << (int)rhs.b;
+    return lhs;
+}
+
+std::istream& operator>>(std::istream& lhs, Color& rhs) {
+    int r, g, b;
+    lhs >> r >> g >> b;
+    rhs.r = r;
+    rhs.g = g;
+    rhs.b = b;
+    return lhs;
+}
+
 InputCb inputcb = nullptr;
 
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getdesktopwindow
@@ -141,6 +166,40 @@ void stepinput() {
     before = after;
 }
 
+void waitpress(int key) {
+    while ((GetKeyState(key) & 0x80) == 0) Sleep(10);
+    while ((GetKeyState(key) & 0x80) != 0) Sleep(10);
+}
+
+int waitinput() {
+    int key;
+    bool checking = true;
+    unsigned char kbd1[256];
+    unsigned char kbd2[256];
+
+    GetKeyState(0);
+    GetKeyboardState(kbd1);
+    while (checking) {
+        Sleep(10);
+        GetKeyState(0);
+        GetKeyboardState(kbd2);
+        for (key = 0; key < 256; ++key) {
+            if (kbd1[key] != kbd2[key]) {
+                checking = false;
+                break;
+            }
+        }
+    }
+    while ((GetKeyState(key) & 0x80) != 0) Sleep(10);
+    return key;
+}
+
 void setinputcb(InputCb cb) {
     inputcb = cb;
+}
+
+Color getpixel(int x, int y) {
+    static HDC dc = GetDC(NULL);
+    COLORREF pixel = GetPixel(dc, x, y);
+    return *reinterpret_cast<Color*>(&pixel);
 }
