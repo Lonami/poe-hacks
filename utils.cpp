@@ -31,11 +31,11 @@ DWORD findproc(const char *startwith, char *name, DWORD namelen) {
     DWORD got;
     DWORD pids[1024];
     if (EnumProcesses(pids, sizeof(pids), &got)) {
-        int n = (int)(got / sizeof(DWORD));
-        for (int i = 0; i < n; ++i) {
-            getprocname(pids[i], name, namelen);
-            if (startswith(name, startwith)) {
-                return pids[i];
+        for (int i = (int)(got / sizeof(DWORD)); i-- != 0;) {
+            if (getprocname(pids[i], name, namelen)) {
+                if (startswith(name, startwith)) {
+                    return pids[i];
+                }
             }
         }
     }

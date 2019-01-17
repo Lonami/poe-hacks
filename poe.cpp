@@ -102,7 +102,8 @@ bool logout() {
 
     free(table);
     if (ok == 0) {
-        fprintf(stderr, "logout err: failed to close connections!\n");
+        fprintf(stderr, "logout err: didn't close any connection! "
+                        "are you in the login screen?\n");
         return false;
     }
 
