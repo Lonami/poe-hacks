@@ -3,28 +3,6 @@
 #include <cstring>
 #include <Wingdi.h>
 
-bool operator==(const Color& lhs, const Color& rhs) {
-    return memcmp(&lhs, &rhs, sizeof(Color)) == 0;
-}
-
-bool operator!=(const Color& lhs, const Color& rhs) {
-    return memcmp(&lhs, &rhs, sizeof(Color)) != 0;
-}
-
-std::ostream& operator<<(std::ostream& lhs, const Color& rhs) {
-    lhs << (int)rhs.r << ' ' << (int)rhs.g << ' ' << (int)rhs.b;
-    return lhs;
-}
-
-std::istream& operator>>(std::istream& lhs, Color& rhs) {
-    int r, g, b;
-    lhs >> r >> g >> b;
-    rhs.r = r;
-    rhs.g = g;
-    rhs.b = b;
-    return lhs;
-}
-
 InputCb inputcb = nullptr;
 
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getdesktopwindow
@@ -41,15 +19,18 @@ bool setmouse(int x, int y) {
     return SetCursorPos(x, y);
 }
 
+bool setmouse(Point p) {
+    return SetCursorPos(p.x, p.y);
+}
+
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getcursorpos
-bool getmouse(int &x, int &y) {
+Point getmouse() {
     POINT point;
     if (GetCursorPos(&point)) {
-        x = point.x;
-        y = point.y;
-        return true;
+        return Point { point.x, point.y };
+    } else {
+        return Point { -1, -1 };
     }
-    return false;
 }
 
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-sendinput
@@ -198,8 +179,7 @@ void setinputcb(InputCb cb) {
     inputcb = cb;
 }
 
-Color getpixel(int x, int y) {
+Color getpixel(Point p) {
     static HDC dc = GetDC(NULL);
-    COLORREF pixel = GetPixel(dc, x, y);
-    return *reinterpret_cast<Color*>(&pixel);
+    return { GetPixel(dc, p.x, p.y) };
 }

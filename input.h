@@ -3,25 +3,20 @@
 #include <iostream>
 #include <Windows.h>
 
+#include "color.h"
+#include "point.h"
+
 using InputCb = void (*)(int key, bool down);
-
-struct Color {
-    unsigned char r, g, b, z;
-};
-
-bool operator==(const Color& lhs, const Color& rhs);
-bool operator!=(const Color& lhs, const Color& rhs);
-std::ostream& operator<<(std::ostream& lhs, const Color& rhs);
-std::istream& operator>>(std::istream& lhs, Color& rhs);
 
 // get the primary screen size
 void getscreensize(int &w, int &h);
 
 // set the mouse position
 bool setmouse(int x, int y);
+bool setmouse(Point p);
 
-// get the mouse position, true on success
-bool getmouse(int &x, int &y);
+// get the mouse position
+Point getmouse();
 
 // clicks with button, 1 left, 2 right; default 1
 void click();
@@ -53,4 +48,4 @@ int waitinput();
 void setinputcb(InputCb cb);
 
 // get a pixel onscreen
-Color getpixel(int x, int y);
+Color getpixel(Point p);

@@ -6,6 +6,7 @@
 
 #include "utils.h"
 #include "input.h"
+#include "color.h"
 
 // used declarations for iphlpapi.dll
 HMODULE iphlpapi;
@@ -137,39 +138,36 @@ int main() {
     setinputcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
-    Color deco, life;
-    int key, decox, decoy, lifex, lifey;
+    int key;
+    Point decop, lifep;
+    Color decoc, lifec;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
-                >> deco
-                >> life
-                >> decox >> decoy
-                >> lifex >> lifey
+                >> decop >> decoc
+                >> lifep >> lifec
                 ;
 
         keyfile.close();
     } else {
         printf("-- no key file detected, running first time setup --\n"
                "press the key to use for logout\n");
-        targetkey = waitinput();
+        while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
 
         printf("right click on the life decoration\n");
         waitpress(VK_RBUTTON);
-        getmouse(decox, decoy);
-        deco = getpixel(decox, decoy);
+        decop = getmouse();
+        decoc = getpixel(decop);
 
         printf("right click on low life to auto-dc\n");
         waitpress(VK_RBUTTON);
-        getmouse(lifex, lifey);
-        life = getpixel(lifex, lifey);
+        lifep = getmouse();
+        lifec = getpixel(lifep);
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
-                << deco << '\n'
-                << life << '\n'
-                << decox << ' ' << decoy << '\n'
-                << lifex << ' ' << lifey << '\n'
+                << decop << ' ' << decoc << '\n'
+                << lifep << ' ' << lifec << '\n'
                 ;
 
         savekey.close();
@@ -177,12 +175,12 @@ int main() {
 
     printf("using key %d, checking life at (%d, %d)\n"
            "delete poe.key and re-run to change this\n",
-           targetkey, lifex, lifey);
+           targetkey, lifep.x, lifep.y);
 
     while (running) {
         Sleep(10);
         stepinput();
-        if (getpixel(lifex, lifey) != life && getpixel(decox, decoy) == deco) {
+        if (getpixel(lifep) != lifec && getpixel(decop) == decoc) {
             printf("low life!\n");
             if (logout()) {
                 Sleep(100); // don't spam logout if it worked
