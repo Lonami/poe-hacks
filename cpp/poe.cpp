@@ -143,14 +143,15 @@ int main() {
     int manaflask;
     int lastheal = 0;
     int lastmana = 0;
-    Point decop, lifep, midlifep, manap;
-    Color decoc, lifec, midlifec, manac;
+    Point decop1, decop2, lifep, midlifep, manap;
+    Color decoc1, decoc2, lifec, midlifec, manac, tmpc;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
                 >> lifeflask
                 >> manaflask
-                >> decop >> decoc
+                >> decop1 >> decoc1
+                >> decop2 >> decoc2
                 >> lifep >> lifec
                 >> midlifep >> midlifec
                 >> manap >> manac
@@ -188,16 +189,22 @@ int main() {
         lifep = getmouse();
         lifec = getpixel(lifep);
 
-        printf("right click on some decoration\n");
+        printf("right click on some left decoration\n");
         waitpress(VK_RBUTTON);
-        decop = getmouse();
-        decoc = getpixel(decop);
+        decop1 = getmouse();
+        decoc1 = getpixel(decop1);
+
+        printf("right click on some right decoration\n");
+        waitpress(VK_RBUTTON);
+        decop2 = getmouse();
+        decoc2 = getpixel(decop2);
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
                 << lifeflask << '\n'
                 << manaflask << '\n'
-                << decop << ' ' << decoc << '\n'
+                << decop1 << ' ' << decoc1 << '\n'
+                << decop2 << ' ' << decoc2 << '\n'
                 << lifep << ' ' << lifec << '\n'
                 << midlifep << ' ' << midlifec << '\n'
                 << manap << ' ' << manac << '\n'
@@ -214,23 +221,35 @@ int main() {
     while (running) {
         Sleep(10);
         stepinput();
-        if (getpixel(lifep) != lifec && getpixel(decop) == decoc) {
-            printf("low life!\n");
+
+        // double-check life/mana pixels bc sometimes they're black
+        if (getpixel(lifep) != lifec
+                && getpixel(decop1) == decoc1
+                && getpixel(decop2) == decoc2
+                && (tmpc = getpixel(lifep)) != lifec) {
+            printf("low life! (%d, %d, %d) != (%d, %d, %d)\n",
+                   tmpc.r, tmpc.g, tmpc.b, lifec.r, lifec.g, lifec.b);
             if (logout()) {
                 Sleep(100); // don't spam logout if it worked
             }
         }
         if (getpixel(midlifep) != midlifec
-                && getpixel(decop) == decoc
-                && GetTickCount() - lastheal > 1000) {
-            printf("mid life, healing!\n");
+                && getpixel(decop1) == decoc1
+                && getpixel(decop2) == decoc2
+                && GetTickCount() - lastheal > 100
+                && (tmpc = getpixel(midlifep)) != midlifec) {
+            printf("mid life, healing! (%d, %d, %d) != (%d, %d, %d)\n",
+                   tmpc.r, tmpc.g, tmpc.b, midlifec.r, midlifec.g, midlifec.b);
             press(lifeflask, 0);
             lastheal = GetTickCount();
         }
         if (getpixel(manap) != manac
-                && getpixel(decop) == decoc
-                && GetTickCount() - lastmana > 2000) {
-            printf("low mana, using flask!\n");
+                && getpixel(decop1) == decoc1
+                && getpixel(decop2) == decoc2
+                && GetTickCount() - lastmana > 2000
+                && (tmpc = getpixel(manap)) != manac) {
+            printf("low mana, using flask! (%d, %d, %d) != (%d, %d, %d)\n",
+                   tmpc.r, tmpc.g, tmpc.b, manac.r, manac.g, manac.b);
             press(manaflask, 0);
             lastmana = GetTickCount();
         }
