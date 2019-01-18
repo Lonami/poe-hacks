@@ -159,32 +159,36 @@ int main() {
         keyfile.close();
     } else {
         stickwindow();
-        printf("-- no key file detected, running first time setup --\n"
-               "press the key to use for logout\n");
-        while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
+        printf("-- no key file detected, running first time setup --\n");
 
-        printf("press the key with the mana flask\n");
-        while ((manaflask = waitinput()) < 0x07); // repeat on mouse input
-
+        // autoheal
         printf("press the key with the healing flask\n");
         while ((lifeflask = waitinput()) < 0x07); // repeat on mouse input
-
-        printf("right click on low mana to auto-mana\n");
-        waitpress(VK_RBUTTON);
-        manap = getmouse();
-        manac = getpixel(manap);
 
         printf("right click on mid-life to auto-heal\n");
         waitpress(VK_RBUTTON);
         midlifep = getmouse();
         midlifec = getpixel(midlifep);
 
+        // automana
+        printf("press the key with the mana flask\n");
+        while ((manaflask = waitinput()) < 0x07); // repeat on mouse input
+
+        printf("right click on low mana to auto-mana\n");
+        waitpress(VK_RBUTTON);
+        manap = getmouse();
+        manac = getpixel(manap);
+
+        // auto/quick dc
+        printf("press the key to use for logout\n");
+        while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
+
         printf("right click on low life to auto-dc\n");
         waitpress(VK_RBUTTON);
         lifep = getmouse();
         lifec = getpixel(lifep);
 
-        printf("right click on the life decoration\n");
+        printf("right click on some decoration\n");
         waitpress(VK_RBUTTON);
         decop = getmouse();
         decoc = getpixel(decop);
