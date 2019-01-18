@@ -139,13 +139,17 @@ int main() {
     SetConsoleCtrlHandler(oninterrupt, true);
 
     int key;
-    Point decop, lifep;
-    Color decoc, lifec;
+    int lifeflask;
+    int lastheal = 0;
+    Point decop, lifep, midlifep;
+    Color decoc, lifec, midlifec;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
+                >> lifeflask
                 >> decop >> decoc
                 >> lifep >> lifec
+                >> midlifep >> midlifec
                 ;
 
         keyfile.close();
@@ -153,6 +157,14 @@ int main() {
         printf("-- no key file detected, running first time setup --\n"
                "press the key to use for logout\n");
         while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
+
+        printf("press the key with the healing flask\n");
+        while ((lifeflask = waitinput()) < 0x07); // repeat on mouse input
+
+        printf("right click on mid-life to auto-heal\n");
+        waitpress(VK_RBUTTON);
+        midlifep = getmouse();
+        midlifec = getpixel(midlifep);
 
         printf("right click on low life to auto-dc\n");
         waitpress(VK_RBUTTON);
@@ -170,8 +182,10 @@ int main() {
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
+                << lifeflask << '\n'
                 << decop << ' ' << decoc << '\n'
                 << lifep << ' ' << lifec << '\n'
+                << midlifep << ' ' << midlifec << '\n'
                 ;
 
         savekey.close();
@@ -189,6 +203,13 @@ int main() {
             if (logout()) {
                 Sleep(100); // don't spam logout if it worked
             }
+        }
+        if (getpixel(midlifep) != midlifec
+                && getpixel(decop) == decoc
+                && GetTickCount() - lastheal > 1000) {
+            printf("mid life, healing!\n");
+            press(lifeflask, 0);
+            lastheal = GetTickCount();
         }
     }
 
