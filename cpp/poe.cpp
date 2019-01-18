@@ -158,6 +158,7 @@ int main() {
 
         keyfile.close();
     } else {
+        stickwindow();
         printf("-- no key file detected, running first time setup --\n"
                "press the key to use for logout\n");
         while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
@@ -199,6 +200,7 @@ int main() {
                 ;
 
         savekey.close();
+        unstickwindow();
     }
 
     printf("using key %d, checking life at (%d, %d)\n"

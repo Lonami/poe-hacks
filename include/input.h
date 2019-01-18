@@ -55,3 +55,9 @@ void setinputcb(InputCb cb);
 
 // get a pixel onscreen
 Color getpixel(Point p);
+
+// sticks the window up in screen
+bool stickwindow();
+
+// unsticks the window from screen
+bool unstickwindow();

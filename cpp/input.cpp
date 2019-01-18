@@ -196,3 +196,23 @@ Color getpixel(Point p) {
     static HDC dc = GetDC(NULL);
     return { GetPixel(dc, p.x, p.y) };
 }
+
+// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setwindowpos
+bool stickwindow() {
+    HWND handle = GetConsoleWindow();
+    if (handle) {
+        return SetWindowPos(handle, HWND_TOPMOST, 0, 0, 600, 100,
+                            SWP_DRAWFRAME | SWP_SHOWWINDOW);
+    }
+    return false;
+}
+
+bool unstickwindow() {
+    HWND handle = GetConsoleWindow();
+    if (handle) {
+        return SetWindowPos(handle, HWND_NOTOPMOST, 0, 0, 0, 0,
+                            SWP_DRAWFRAME | SWP_NOMOVE
+                             | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+    return false;
+}
