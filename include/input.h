@@ -32,7 +32,13 @@ void type(const char *text);
 void press(WORD vk, char action);
 
 // is the given key down?
-bool isdown(char key);
+bool isdown(int key);
+
+// is the given key pressed? (down and up)
+// NOTE the key should not change! it will
+// detect down and then up on any key.
+// NOTE it should be used in a loop until pressed
+bool pressed(int key);
 
 // steps the input state to update it
 void stepinput();

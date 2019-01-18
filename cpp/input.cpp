@@ -122,8 +122,21 @@ void press(WORD vk, char action) {
     };
 }
 
-bool isdown(char key) {
-    return (GetKeyState(VkKeyScanA(key) & 0xff) & 0x80) != 0;
+bool isdown(int key) {
+    return (GetKeyState(key) & 0x80) != 0;
+}
+
+bool pressed(int key) {
+    static bool down = false;
+    if (down) {
+        if (!isdown(key)) {
+            down = false; // reset
+            return true;
+        }
+    } else if (isdown(key)) {
+        down = true;
+    }
+    return false;
 }
 
 void stepinput() {

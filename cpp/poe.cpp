@@ -154,15 +154,19 @@ int main() {
                "press the key to use for logout\n");
         while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
 
-        printf("right click on the life decoration\n");
-        waitpress(VK_RBUTTON);
-        decop = getmouse();
-        decoc = getpixel(decop);
-
         printf("right click on low life to auto-dc\n");
         waitpress(VK_RBUTTON);
         lifep = getmouse();
         lifec = getpixel(lifep);
+
+        // lock mouse in the y axis: if taskbar covers life -> cover deco
+        printf("right click on the life decoration\n");
+        while (!pressed(VK_RBUTTON)) {
+            Sleep(10);
+            setmouse(getmouse().x, lifep.y);
+        }
+        decop = getmouse();
+        decoc = getpixel(decop);
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
