@@ -140,16 +140,20 @@ int main() {
 
     int key;
     int lifeflask;
+    int manaflask;
     int lastheal = 0;
-    Point decop, lifep, midlifep;
-    Color decoc, lifec, midlifec;
+    int lastmana = 0;
+    Point decop, lifep, midlifep, manap;
+    Color decoc, lifec, midlifec, manac;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
                 >> lifeflask
+                >> manaflask
                 >> decop >> decoc
                 >> lifep >> lifec
                 >> midlifep >> midlifec
+                >> manap >> manac
                 ;
 
         keyfile.close();
@@ -158,8 +162,16 @@ int main() {
                "press the key to use for logout\n");
         while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
 
+        printf("press the key with the mana flask\n");
+        while ((manaflask = waitinput()) < 0x07); // repeat on mouse input
+
         printf("press the key with the healing flask\n");
         while ((lifeflask = waitinput()) < 0x07); // repeat on mouse input
+
+        printf("right click on low mana to auto-mana\n");
+        waitpress(VK_RBUTTON);
+        manap = getmouse();
+        manac = getpixel(manap);
 
         printf("right click on mid-life to auto-heal\n");
         waitpress(VK_RBUTTON);
@@ -171,21 +183,19 @@ int main() {
         lifep = getmouse();
         lifec = getpixel(lifep);
 
-        // lock mouse in the y axis: if taskbar covers life -> cover deco
         printf("right click on the life decoration\n");
-        while (!pressed(VK_RBUTTON)) {
-            Sleep(10);
-            setmouse(getmouse().x, lifep.y);
-        }
+        waitpress(VK_RBUTTON);
         decop = getmouse();
         decoc = getpixel(decop);
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
                 << lifeflask << '\n'
+                << manaflask << '\n'
                 << decop << ' ' << decoc << '\n'
                 << lifep << ' ' << lifec << '\n'
                 << midlifep << ' ' << midlifec << '\n'
+                << manap << ' ' << manac << '\n'
                 ;
 
         savekey.close();
@@ -210,6 +220,13 @@ int main() {
             printf("mid life, healing!\n");
             press(lifeflask, 0);
             lastheal = GetTickCount();
+        }
+        if (getpixel(manap) != manac
+                && getpixel(decop) == decoc
+                && GetTickCount() - lastmana > 2000) {
+            printf("low mana, using flask!\n");
+            press(manaflask, 0);
+            lastmana = GetTickCount();
         }
     }
 
