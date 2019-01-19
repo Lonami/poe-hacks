@@ -8,56 +8,67 @@
 
 using InputCb = void (*)(int key, bool down);
 
-// get the primary screen size
-void getscreensize(int &w, int &h);
+namespace screen {
+    // get the primary screen size
+    void size(int &w, int &h);
 
-// set the mouse position
-bool setmouse(int x, int y);
-bool setmouse(Point p);
+    // get a pixel onscreen
+    Color get(Point p);
 
-// get the mouse position
-Point getmouse();
+    // sticks the window up in screen
+    bool stick();
 
-// clicks with button, 1 left, 2 right; default 1
-void click();
-void click(int button);
+    // unsticks the window from screen
+    bool unstick();
+}
 
-// scrolls the mouse n times, positive forward (up), negative backward (down)
-void scroll(int amount);
+namespace mouse {
+    // get the mouse position
+    Point get();
 
-// types the given text
-void type(const char *text);
+    // set the mouse position
+    bool set(int x, int y);
+    bool set(Point p);
 
-// presses the given key, and how (0 tap, 1 down, 2 up)
-void press(WORD vk, char action);
+    // clicks with button, 1 left, 2 right; default 1
+    void click();
+    void click(int button);
 
-// is the given key down?
-bool isdown(int key);
+    // scrolls the mouse n times, positive forward (up), negative backward (down)
+    void scroll(int amount);
+}
 
-// is the given key pressed? (down and up)
-// NOTE the key should not change! it will
-// detect down and then up on any key.
-// NOTE it should be used in a loop until pressed
-bool pressed(int key);
+namespace kbd {
+    // types the given text
+    void type(const char *text);
 
-// steps the input state to update it
-void stepinput();
+    // presses the given key
+    void tap(WORD vk);
+    void hold(WORD vk);
+    void release(WORD vk);
+    void press(WORD vk, bool down);
 
-// wait until the given key is pressed (down and released)
-void waitpress(int key);
+    // is the given key down?
+    bool down(WORD vk);
 
-// wait until any key state changes and then is released, and return which
-int waitinput();
+    // is the given key pressed? (down and up)
+    // NOTE the key should not change! it will
+    // detect down and then up on any key.
+    // NOTE it should be used in a loop until pressed
+    bool pressed(WORD vk);
+}
 
-// sets the input callback, for possible keys see:
-// https://docs.microsoft.com/en-gb/windows/desktop/inputdev/virtual-key-codes
-void setinputcb(InputCb cb);
+namespace input {
+    // sets the input callback, for possible keys see:
+    // https://docs.microsoft.com/en-gb/windows/desktop/inputdev/virtual-key-codes
+    void setcb(InputCb cb);
 
-// get a pixel onscreen
-Color getpixel(Point p);
+    // steps the input state to update it
+    void step();
 
-// sticks the window up in screen
-bool stickwindow();
+    // wait until the given key is pressed (down and released)
+    void wait(WORD vk);
 
-// unsticks the window from screen
-bool unstickwindow();
+    // wait until any key state changes and then is released, and return which
+    WORD wait();
+}

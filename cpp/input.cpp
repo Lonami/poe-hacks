@@ -3,10 +3,10 @@
 #include <cstring>
 #include <Wingdi.h>
 
-InputCb inputcb = nullptr;
 
+namespace screen {
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getdesktopwindow
-void getscreensize(int &w, int &h) {
+void size(int &w, int &h) {
     RECT desktop;
     const HWND hDesktop = GetDesktopWindow();
     GetWindowRect(hDesktop, &desktop);
@@ -14,23 +14,51 @@ void getscreensize(int &w, int &h) {
     h = desktop.bottom;
 }
 
-// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setcursorpos
-bool setmouse(int x, int y) {
-    return SetCursorPos(x, y);
+// https://docs.microsoft.com/en-us/windows/desktop/api/wingdi/nf-wingdi-getpixel
+Color get(Point p) {
+    static HDC dc = GetDC(NULL);
+    return { GetPixel(dc, p.x, p.y) };
 }
 
-bool setmouse(Point p) {
-    return SetCursorPos(p.x, p.y);
+// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setwindowpos
+bool stick() {
+    HWND handle = GetConsoleWindow();
+    if (handle) {
+        return SetWindowPos(handle, HWND_TOPMOST, 0, 0, 600, 100,
+                            SWP_DRAWFRAME | SWP_SHOWWINDOW);
+    }
+    return false;
 }
 
+bool unstick() {
+    HWND handle = GetConsoleWindow();
+    if (handle) {
+        return SetWindowPos(handle, HWND_NOTOPMOST, 0, 0, 0, 0,
+                            SWP_DRAWFRAME | SWP_NOMOVE
+                             | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+    return false;
+}
+} // screen
+
+namespace mouse {
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getcursorpos
-Point getmouse() {
+Point get() {
     POINT point;
     if (GetCursorPos(&point)) {
         return Point { point.x, point.y };
     } else {
         return Point { -1, -1 };
     }
+}
+
+// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setcursorpos
+bool set(int x, int y) {
+    return SetCursorPos(x, y);
+}
+
+bool set(Point p) {
+    return SetCursorPos(p.x, p.y);
 }
 
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-sendinput
@@ -69,7 +97,9 @@ void scroll(DWORD amount) {
     INPUT input = { INPUT_MOUSE, mi };
     SendInput(1, &input, sizeof(input));
 }
+} // mouse
 
+namespace kbd {
 // helper method to send input depending on the modifier
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-vkkeyscana#return-value
 // https://docs.microsoft.com/en-gb/windows/desktop/inputdev/virtual-key-codes
@@ -87,6 +117,7 @@ void _typemod(INPUT &input, const unsigned char mod) {
         SendInput(1, &input, sizeof(input));
     }
 }
+
 
 void type(const char *text) {
     INPUT input = { INPUT_KEYBOARD };
@@ -111,43 +142,57 @@ void type(const char *text) {
     }
 }
 
-void press(WORD vk, char action) {
+void tap(WORD vk) {
+    press(vk, true);
+    press(vk, false);
+}
+
+void hold(WORD vk) {
+    press(vk, true);
+}
+
+void release(WORD vk) {
+    press(vk, false);
+}
+
+void press(WORD vk, bool down) {
     INPUT input = { INPUT_KEYBOARD };
-    input.ki = { vk, 0, 0, 0, 0 };
-    switch (action) {
-    case 0:
-        SendInput(1, &input, sizeof(input));
-        input.ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(1, &input, sizeof(input));
-        break;
-    case 1:
-        SendInput(1, &input, sizeof(input));
-        break;
-    case 2:
-        input.ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(1, &input, sizeof(input));
-        break;
+    input.ki = {
+        vk,                           // key
+        0,                            // unicode scan
+        down ? 0ul : KEYEVENTF_KEYUP, // flags
+        0,                            //time
+        0                             // extra
     };
+    SendInput(1, &input, sizeof(input));
 }
 
-bool isdown(int key) {
-    return (GetKeyState(key) & 0x80) != 0;
+bool down(WORD vk) {
+    return (GetKeyState(vk) & 0x80) != 0;
 }
 
-bool pressed(int key) {
-    static bool down = false;
-    if (down) {
-        if (!isdown(key)) {
-            down = false; // reset
+bool pressed(WORD vk) {
+    static bool last_down = false;
+    if (last_down) {
+        if (!down(vk)) {
+            last_down = false; // reset
             return true;
         }
-    } else if (isdown(key)) {
-        down = true;
+    } else if (down(vk)) {
+        last_down = true;
     }
     return false;
 }
+} // kbd
 
-void stepinput() {
+namespace input {
+InputCb inputcb = nullptr;
+
+void setcb(InputCb cb) {
+    inputcb = cb;
+}
+
+void step() {
     static unsigned char kbd1[256]; // 1 = down, 0 = up
     static unsigned char kbd2[256];
     static unsigned char *before = kbd1;
@@ -168,13 +213,13 @@ void stepinput() {
     before = after;
 }
 
-void waitpress(int key) {
-    while ((GetKeyState(key) & 0x80) == 0) Sleep(10);
-    while ((GetKeyState(key) & 0x80) != 0) Sleep(10);
+void wait(WORD vk) {
+    while ((GetKeyState(vk) & 0x80) == 0) Sleep(10);
+    while ((GetKeyState(vk) & 0x80) != 0) Sleep(10);
 }
 
-int waitinput() {
-    int key;
+WORD wait() {
+    WORD vk;
     bool checking = true;
     unsigned char kbd1[256];
     unsigned char kbd2[256];
@@ -185,42 +230,14 @@ int waitinput() {
         Sleep(10);
         GetKeyState(0);
         GetKeyboardState(kbd2);
-        for (key = 0; key < 256; ++key) {
-            if (kbd1[key] != kbd2[key]) {
+        for (vk = 0; vk < 256; ++vk) {
+            if (kbd1[vk] != kbd2[vk]) {
                 checking = false;
                 break;
             }
         }
     }
-    while ((GetKeyState(key) & 0x80) != 0) Sleep(10);
-    return key;
+    while ((GetKeyState(vk) & 0x80) != 0) Sleep(10);
+    return vk;
 }
-
-void setinputcb(InputCb cb) {
-    inputcb = cb;
-}
-
-Color getpixel(Point p) {
-    static HDC dc = GetDC(NULL);
-    return { GetPixel(dc, p.x, p.y) };
-}
-
-// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setwindowpos
-bool stickwindow() {
-    HWND handle = GetConsoleWindow();
-    if (handle) {
-        return SetWindowPos(handle, HWND_TOPMOST, 0, 0, 600, 100,
-                            SWP_DRAWFRAME | SWP_SHOWWINDOW);
-    }
-    return false;
-}
-
-bool unstickwindow() {
-    HWND handle = GetConsoleWindow();
-    if (handle) {
-        return SetWindowPos(handle, HWND_NOTOPMOST, 0, 0, 0, 0,
-                            SWP_DRAWFRAME | SWP_NOMOVE
-                             | SWP_NOSIZE | SWP_SHOWWINDOW);
-    }
-    return false;
-}
+} // input

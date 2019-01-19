@@ -33,7 +33,7 @@ int width, height;
 
 // this loads screen size and sets width/height, load some functions
 void setup() {
-    getscreensize(width, height);
+    screen::size(width, height);
 
     iphlpapi = LoadLibrary("iphlpapi.dll");
     gettable = (GetExtendedTcpTablePtr)
@@ -135,7 +135,7 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 
 int main() {
     setup();
-    setinputcb(oninput);
+    input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
     int key;
@@ -159,45 +159,45 @@ int main() {
 
         keyfile.close();
     } else {
-        stickwindow();
+        screen::stick();
         printf("-- no key file detected, running first time setup --\n");
 
         // autoheal
         printf("press the key with the healing flask\n");
-        while ((lifeflask = waitinput()) < 0x07); // repeat on mouse input
+        while ((lifeflask = input::wait()) < 0x07); // repeat on mouse input
 
         printf("right click on mid-life to auto-heal\n");
-        waitpress(VK_RBUTTON);
-        midlifep = getmouse();
-        midlifec = getpixel(midlifep);
+        input::wait(VK_RBUTTON);
+        midlifep = mouse::get();
+        midlifec = screen::get(midlifep);
 
         // automana
         printf("press the key with the mana flask\n");
-        while ((manaflask = waitinput()) < 0x07); // repeat on mouse input
+        while ((manaflask = input::wait()) < 0x07); // repeat on mouse input
 
         printf("right click on low mana to auto-mana\n");
-        waitpress(VK_RBUTTON);
-        manap = getmouse();
-        manac = getpixel(manap);
+        input::wait(VK_RBUTTON);
+        manap = mouse::get();
+        manac = screen::get(manap);
 
         // auto/quick dc
         printf("press the key to use for logout\n");
-        while ((targetkey = waitinput()) < 0x07); // repeat on mouse input
+        while ((targetkey = input::wait()) < 0x07); // repeat on mouse input
 
         printf("right click on low life to auto-dc\n");
-        waitpress(VK_RBUTTON);
-        lifep = getmouse();
-        lifec = getpixel(lifep);
+        input::wait(VK_RBUTTON);
+        lifep = mouse::get();
+        lifec = screen::get(lifep);
 
         printf("right click on some left decoration\n");
-        waitpress(VK_RBUTTON);
-        decop1 = getmouse();
-        decoc1 = getpixel(decop1);
+        input::wait(VK_RBUTTON);
+        decop1 = mouse::get();
+        decoc1 = screen::get(decop1);
 
         printf("right click on some right decoration\n");
-        waitpress(VK_RBUTTON);
-        decop2 = getmouse();
-        decoc2 = getpixel(decop2);
+        input::wait(VK_RBUTTON);
+        decop2 = mouse::get();
+        decoc2 = screen::get(decop2);
 
         std::ofstream savekey("poe.key");
         savekey << targetkey << '\n'
@@ -211,7 +211,7 @@ int main() {
                 ;
 
         savekey.close();
-        unstickwindow();
+        screen::unstick();
     }
 
     printf("using key %d, checking life at (%d, %d)\n"
@@ -220,37 +220,41 @@ int main() {
 
     while (running) {
         Sleep(10);
-        stepinput();
+        input::step();
 
         // double-check life/mana pixels bc sometimes they're black
-        if (getpixel(lifep) != lifec
-                && getpixel(decop1) == decoc1
-                && getpixel(decop2) == decoc2
-                && (tmpc = getpixel(lifep)) != lifec) {
+        if ((tmpc = screen::get(lifep)) != lifec
+                && screen::get(decop1) == decoc1
+                && screen::get(decop2) == decoc2) {
+            if (screen::get(lifep) != lifec) {
             printf("low life! (%d, %d, %d) != (%d, %d, %d)\n",
                    tmpc.r, tmpc.g, tmpc.b, lifec.r, lifec.g, lifec.b);
             if (logout()) {
                 Sleep(100); // don't spam logout if it worked
             }
+            } else {
+                printf("first pixel was bad, but second not: (%d, %d, %d) != (%d, %d, %d)\n",
+                   tmpc.r, tmpc.g, tmpc.b, lifec.r, lifec.g, lifec.b);
+            }
         }
-        if (getpixel(midlifep) != midlifec
-                && getpixel(decop1) == decoc1
-                && getpixel(decop2) == decoc2
+        if (screen::get(midlifep) != midlifec
+                && screen::get(decop1) == decoc1
+                && screen::get(decop2) == decoc2
                 && GetTickCount() - lastheal > 100
-                && (tmpc = getpixel(midlifep)) != midlifec) {
+                && (tmpc = screen::get(midlifep)) != midlifec) {
             printf("mid life, healing! (%d, %d, %d) != (%d, %d, %d)\n",
                    tmpc.r, tmpc.g, tmpc.b, midlifec.r, midlifec.g, midlifec.b);
-            press(lifeflask, 0);
+            kbd::tap(lifeflask);
             lastheal = GetTickCount();
         }
-        if (getpixel(manap) != manac
-                && getpixel(decop1) == decoc1
-                && getpixel(decop2) == decoc2
+        if (screen::get(manap) != manac
+                && screen::get(decop1) == decoc1
+                && screen::get(decop2) == decoc2
                 && GetTickCount() - lastmana > 2000
-                && (tmpc = getpixel(manap)) != manac) {
+                && (tmpc = screen::get(manap)) != manac) {
             printf("low mana, using flask! (%d, %d, %d) != (%d, %d, %d)\n",
                    tmpc.r, tmpc.g, tmpc.b, manac.r, manac.g, manac.b);
-            press(manaflask, 0);
+            kbd::tap(manaflask);
             lastmana = GetTickCount();
         }
     }

@@ -8,7 +8,7 @@ int width, height, midx, midy;
 
 // this loads screen size and sets width/height/midx/midy
 void setup() {
-    getscreensize(width, height);
+    screen::size(width, height);
     midx = width / 1.9; // slightly to the right to workaround memu quirks
     midy = height / 2;
 }
@@ -17,15 +17,15 @@ void setup() {
 void oninput(int key, bool down) {
     switch (key) {
     case VK_RBUTTON:
-        press('E', down);
+        kbd::press('E', down);
         if (down) {
-            SetCursorPos(midx, midy);
+            mouse::set(midx, midy);
         }
         break;
     case VK_MBUTTON:
-        press('Q', down);
+        kbd::press('Q', down);
         if (down) {
-            SetCursorPos(midx, midy);
+            mouse::set(midx, midy);
         }
         break;
     }
@@ -45,14 +45,14 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 // this runs the program forever listening for input
 int main() {
     setup();
-    setinputcb(oninput);
+    input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
     printf("size: %d x %d\n", width, height);
     printf("program now running\n");
     while (running) {
         Sleep(10);
-        stepinput();
+        input::step();
     }    
 
     printf("graceful shutdown\n");
