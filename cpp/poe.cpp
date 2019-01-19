@@ -144,7 +144,7 @@ int main() {
     int lastheal = 0;
     int lastmana = 0;
     Point decop1, decop2, lifep, midlifep, manap;
-    Color decoc1, decoc2, lifec, midlifec, manac, tmpc;
+    Color decoc1, decoc2, lifec, midlifec, manac;
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
@@ -221,39 +221,29 @@ int main() {
     while (running) {
         Sleep(10);
         input::step();
+        if (screen::get(decop1) != decoc1
+                || screen::get(decop2) != decoc2) {
+            continue; // don't check anything if decoration is not there
+        }
 
-        // double-check life/mana pixels bc sometimes they're black
-        if ((tmpc = screen::get(lifep)) != lifec
-                && screen::get(decop1) == decoc1
-                && screen::get(decop2) == decoc2) {
-            if (screen::get(lifep) != lifec) {
-            printf("low life! (%d, %d, %d) != (%d, %d, %d)\n",
-                   tmpc.r, tmpc.g, tmpc.b, lifec.r, lifec.g, lifec.b);
+        if (screen::get(lifep) != lifec) {
+            printf("low life!\n");
             if (logout()) {
                 Sleep(100); // don't spam logout if it worked
-            }
-            } else {
-                printf("first pixel was bad, but second not: (%d, %d, %d) != (%d, %d, %d)\n",
-                   tmpc.r, tmpc.g, tmpc.b, lifec.r, lifec.g, lifec.b);
+                continue;
             }
         }
+
         if (screen::get(midlifep) != midlifec
-                && screen::get(decop1) == decoc1
-                && screen::get(decop2) == decoc2
-                && GetTickCount() - lastheal > 100
-                && (tmpc = screen::get(midlifep)) != midlifec) {
-            printf("mid life, healing! (%d, %d, %d) != (%d, %d, %d)\n",
-                   tmpc.r, tmpc.g, tmpc.b, midlifec.r, midlifec.g, midlifec.b);
+                && GetTickCount() - lastheal > 1000) {
+            printf("mid life, healing!\n");
             kbd::tap(lifeflask);
             lastheal = GetTickCount();
         }
+
         if (screen::get(manap) != manac
-                && screen::get(decop1) == decoc1
-                && screen::get(decop2) == decoc2
-                && GetTickCount() - lastmana > 2000
-                && (tmpc = screen::get(manap)) != manac) {
-            printf("low mana, using flask! (%d, %d, %d) != (%d, %d, %d)\n",
-                   tmpc.r, tmpc.g, tmpc.b, manac.r, manac.g, manac.b);
+                && GetTickCount() - lastmana > 2000) {
+            printf("low mana, using flask!\n");
             kbd::tap(manaflask);
             lastmana = GetTickCount();
         }
