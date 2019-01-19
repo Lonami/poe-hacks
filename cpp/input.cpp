@@ -40,15 +40,23 @@ void click() {
 
 void click(int button) {
     MOUSEINPUT mi = {
-        0, 0,                                                  // dx, dy
-        static_cast<DWORD>(button == 2 ? XBUTTON2 : XBUTTON1), // button
-        MOUSEEVENTF_LEFTDOWN,                                  // action
-        0                                                      // time
+        0, 0, // dx, dy
+        0,    // data
+        0,    // action
+        0     // time
     };
     INPUT input = { INPUT_MOUSE, mi };
-    SendInput(1, &input, sizeof(input));
-    input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    SendInput(1, &input, sizeof(input));
+    if (button == 2) {
+        input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+        SendInput(1, &input, sizeof(input));
+        input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+        SendInput(1, &input, sizeof(input));
+    } else {
+        input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        SendInput(1, &input, sizeof(input));
+        input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        SendInput(1, &input, sizeof(input));
+    }
 }
 
 void scroll(DWORD amount) {
