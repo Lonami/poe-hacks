@@ -1,12 +1,15 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <fstream>
+#include <vector>
 
 #include <Iphlpapi.h> // https://docs.microsoft.com/en-us/windows/desktop/api/iphlpapi/nf-iphlpapi-getextendedtcptable
 
 #include "utils.h"
 #include "input.h"
 #include "color.h"
+#include "point.h"
+#include "action.h"
 
 // used declarations for iphlpapi.dll
 HMODULE iphlpapi;
@@ -133,29 +136,33 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
     return false;
 }
 
+Point decop1, decop2;
+Color decoc1, decoc2;
+
+bool checkdeco() {
+    return screen::get(decop1) == decoc1
+        && screen::get(decop2) == decoc2;
+}
+
+
 int main() {
     setup();
     input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
-    int key;
-    int lifeflask;
-    int manaflask;
-    int lastheal = 0;
-    int lastmana = 0;
-    Point decop1, decop2, lifep, midlifep, manap;
-    Color decoc1, decoc2, lifec, midlifec, manac;
+    Action action;
+    std::vector<Action> actions {};
+
     std::ifstream keyfile("poe.key");
     if (keyfile) {
         keyfile >> targetkey
-                >> lifeflask
-                >> manaflask
                 >> decop1 >> decoc1
-                >> decop2 >> decoc2
-                >> lifep >> lifec
-                >> midlifep >> midlifec
-                >> manap >> manac
-                ;
+                >> decop2 >> decoc2;
+
+        for (int i = 0; i < 3; ++i) {
+            keyfile >> action;
+            actions.push_back(action);
+        }
 
         keyfile.close();
     } else {
@@ -164,21 +171,27 @@ int main() {
 
         // autoheal
         printf("press the key with the healing flask\n");
-        while ((lifeflask = input::wait()) < 0x07); // repeat on mouse input
+        while ((action.flask = input::wait()) < 0x07); // repeat on mouse input
 
         printf("right click on mid-life to auto-heal\n");
         input::wait(VK_RBUTTON);
-        midlifep = mouse::get();
-        midlifec = screen::get(midlifep);
+        action.skill = 0; // point
+        action.delay = 1000;
+        action.point = mouse::get();
+        action.color = screen::get(action.point);
+        actions.push_back(action);
 
         // automana
         printf("press the key with the mana flask\n");
-        while ((manaflask = input::wait()) < 0x07); // repeat on mouse input
+        while ((action.flask = input::wait()) < 0x07); // repeat on mouse input
 
         printf("right click on low mana to auto-mana\n");
         input::wait(VK_RBUTTON);
-        manap = mouse::get();
-        manac = screen::get(manap);
+        action.skill = 0; // point
+        action.delay = 2000;
+        action.point = mouse::get();
+        action.color = screen::get(action.point);
+        actions.push_back(action);
 
         // auto/quick dc
         printf("press the key to use for logout\n");
@@ -186,8 +199,13 @@ int main() {
 
         printf("right click on low life to auto-dc\n");
         input::wait(VK_RBUTTON);
-        lifep = mouse::get();
-        lifec = screen::get(lifep);
+
+        action.skill = 0; // point
+        action.flask = 0; // logout
+        action.delay = 0;
+        action.point = mouse::get();
+        action.color = screen::get(action.point);
+        actions.push_back(action);
 
         printf("right click on some left decoration\n");
         input::wait(VK_RBUTTON);
@@ -221,31 +239,21 @@ int main() {
     while (running) {
         Sleep(10);
         input::step();
-        if (screen::get(decop1) != decoc1
-                || screen::get(decop2) != decoc2) {
+        if (!checkdeco()) {
             continue; // don't check anything if decoration is not there
         }
 
-        if (screen::get(lifep) != lifec) {
-            printf("low life!\n");
-            if (logout()) {
-                Sleep(100); // don't spam logout if it worked
-                continue;
+        // check deco twice to avoid false positives
+        for (auto&& action: actions) {
+            if (action.check() && checkdeco()) {
+                printf("running action %s\n", action.desc.c_str());
+                if (action.flask) {
+                    kbd::tap(action.flask);
+                } else if (logout()) {
+                    Sleep(100); // don't spam logout if it worked
+                    break;
+                }
             }
-        }
-
-        if (screen::get(midlifep) != midlifec
-                && GetTickCount() - lastheal > 1000) {
-            printf("mid life, healing!\n");
-            kbd::tap(lifeflask);
-            lastheal = GetTickCount();
-        }
-
-        if (screen::get(manap) != manac
-                && GetTickCount() - lastmana > 2000) {
-            printf("low mana, using flask!\n");
-            kbd::tap(manaflask);
-            lastmana = GetTickCount();
         }
     }
 

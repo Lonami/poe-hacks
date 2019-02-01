@@ -13,7 +13,7 @@ set COMMON=cpp\utils.cpp cpp\point.cpp cpp\color.cpp cpp\input.cpp
 
 clang -Xclang -flto-visibility-public-std ^
   -I"%WININC%" -l"%WINLIB%\User32.lib" -l"%WINLIB%\WS2_32.lib" -l"%WINLIB%\Gdi32.lib" ^
-  -Iinclude %COMMON% cpp\poe.cpp -obin\poe.exe ^
+  -Iinclude %COMMON% cpp\action.cpp cpp\poe.cpp -obin\poe.exe ^
   > build.log 2>&1
 
 clang -Xclang -flto-visibility-public-std ^
