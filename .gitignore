@@ -1,3 +1,2 @@
-*.exe
+bin/
 *.log
-*.key

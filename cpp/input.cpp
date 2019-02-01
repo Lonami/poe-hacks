@@ -8,7 +8,7 @@ namespace screen {
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getdesktopwindow
 void size(int &w, int &h) {
     RECT desktop;
-    const HWND hDesktop = GetDesktopWindow();
+    static HWND hDesktop = GetDesktopWindow();
     GetWindowRect(hDesktop, &desktop);
     w = desktop.right;
     h = desktop.bottom;
@@ -40,6 +40,36 @@ bool unstick() {
     return false;
 }
 } // screen
+
+namespace cmd {
+static const HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+
+void cls() {
+    COORD pos = { 0, 0 };
+    Point dim = size();
+    DWORD written;
+
+    FillConsoleOutputCharacterA(console, ' ', dim.x * dim.y, pos, &written);
+    SetConsoleCursorPosition(console, pos);
+}
+
+Point size() {
+    CONSOLE_SCREEN_BUFFER_INFO screen;
+    GetConsoleScreenBufferInfo(console, &screen);
+    Point dim = { screen.dwSize.X, screen.dwSize.Y };
+    return dim;
+}
+
+void set(int x, int y) {
+   COORD pos = { (SHORT)x, (SHORT)y };
+   SetConsoleCursorPosition(console, pos);
+}
+
+void set(Point p) {
+   COORD pos = { (SHORT)p.x, (SHORT)p.y };
+   SetConsoleCursorPosition(console, pos);
+}
+} // cmd
 
 namespace mouse {
 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getcursorpos

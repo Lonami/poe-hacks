@@ -1,11 +1,28 @@
 #include "action.h"
 
-Action::Action():
-    enabled(false) {
-}
+#include <Windows.h>
+
+#include "input.h"
 
 bool Action::check() {
-    // TODO GetTickCount, last delay
+    if (this->skill) {
+        if (!kbd::down(this->skill)) {
+            return false;
+        }
+    } else {
+        if (screen::get(this->point) == this->color) {
+            return false;
+        }
+    }
+
+    if (this->delay) {
+        if ((GetTickCount() - this->last_use) < this->delay) {
+            return false;
+        } else {
+            this->last_use = GetTickCount();
+        }
+    }
+
     return true;
 }
 
@@ -16,7 +33,7 @@ std::ostream& operator<<(std::ostream& lhs, const Action& rhs) {
         << rhs.skill << '\n'
         << rhs.point << '\n'
         << rhs.color << '\n'
-        << rhs.desc << '\n';
+        << rhs.desc;
     return lhs;
 }
 

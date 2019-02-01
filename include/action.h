@@ -13,6 +13,9 @@ struct Action {
     // the flask to use in this action, 0 = logout
     unsigned int flask;
 
+    // last use of the flask, not saved
+    unsigned int last_use;
+
     // the delay between spamming the flask, in ms
     unsigned int delay;
     
@@ -25,9 +28,6 @@ struct Action {
     
     // description of this action
     std::string desc;
-
-    // constructor
-    Action();
 
     // checks whether the action should be executed
     bool check();

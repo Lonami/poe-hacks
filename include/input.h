@@ -22,6 +22,18 @@ namespace screen {
     bool unstick();
 }
 
+namespace cmd {
+    // clear screen, reset cursor pos to top left
+    void cls();
+
+    // get console size, x colum
+    Point size();
+
+    // set the cursor position
+    void set(int x, int y);
+    void set(Point p);
+}
+
 namespace mouse {
     // get the mouse position
     Point get();

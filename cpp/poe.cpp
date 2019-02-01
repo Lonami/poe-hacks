@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <fstream>
 #include <vector>
+#include <conio.h>
 
 #include <Iphlpapi.h> // https://docs.microsoft.com/en-us/windows/desktop/api/iphlpapi/nf-iphlpapi-getextendedtcptable
 
@@ -10,6 +11,7 @@
 #include "color.h"
 #include "point.h"
 #include "action.h"
+#include "settings.h"
 
 // used declarations for iphlpapi.dll
 HMODULE iphlpapi;
@@ -31,13 +33,8 @@ using SetTcpEntryPtr = DWORD (*)(
 );
 SetTcpEntryPtr setentry;
 
-// some variables to determine screen size
-int width, height;
-
 // this loads screen size and sets width/height, load some functions
 void setup() {
-    screen::size(width, height);
-
     iphlpapi = LoadLibrary("iphlpapi.dll");
     gettable = (GetExtendedTcpTablePtr)
         GetProcAddress(iphlpapi, "GetExtendedTcpTable");
@@ -118,10 +115,9 @@ bool logout() {
     return true;
 }
 
-int targetkey = 0;
 void oninput(int key, bool down) {
     if (down) {
-        if (key == targetkey) {
+        if (key == settings::logout_key) {
             logout();
         }
     }
@@ -136,116 +132,39 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
     return false;
 }
 
-Point decop1, decop2;
-Color decoc1, decoc2;
-
-bool checkdeco() {
-    return screen::get(decop1) == decoc1
-        && screen::get(decop2) == decoc2;
-}
-
-
 int main() {
     setup();
     input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
-    Action action;
-    std::vector<Action> actions {};
-
-    std::ifstream keyfile("poe.key");
-    if (keyfile) {
-        keyfile >> targetkey
-                >> decop1 >> decoc1
-                >> decop2 >> decoc2;
-
-        for (int i = 0; i < 3; ++i) {
-            keyfile >> action;
-            actions.push_back(action);
-        }
-
-        keyfile.close();
-    } else {
-        screen::stick();
-        printf("-- no key file detected, running first time setup --\n");
-
-        // autoheal
-        printf("press the key with the healing flask\n");
-        while ((action.flask = input::wait()) < 0x07); // repeat on mouse input
-
-        printf("right click on mid-life to auto-heal\n");
-        input::wait(VK_RBUTTON);
-        action.skill = 0; // point
-        action.delay = 1000;
-        action.point = mouse::get();
-        action.color = screen::get(action.point);
-        actions.push_back(action);
-
-        // automana
-        printf("press the key with the mana flask\n");
-        while ((action.flask = input::wait()) < 0x07); // repeat on mouse input
-
-        printf("right click on low mana to auto-mana\n");
-        input::wait(VK_RBUTTON);
-        action.skill = 0; // point
-        action.delay = 2000;
-        action.point = mouse::get();
-        action.color = screen::get(action.point);
-        actions.push_back(action);
-
-        // auto/quick dc
-        printf("press the key to use for logout\n");
-        while ((targetkey = input::wait()) < 0x07); // repeat on mouse input
-
-        printf("right click on low life to auto-dc\n");
-        input::wait(VK_RBUTTON);
-
-        action.skill = 0; // point
-        action.flask = 0; // logout
-        action.delay = 0;
-        action.point = mouse::get();
-        action.color = screen::get(action.point);
-        actions.push_back(action);
-
-        printf("right click on some left decoration\n");
-        input::wait(VK_RBUTTON);
-        decop1 = mouse::get();
-        decoc1 = screen::get(decop1);
-
-        printf("right click on some right decoration\n");
-        input::wait(VK_RBUTTON);
-        decop2 = mouse::get();
-        decoc2 = screen::get(decop2);
-
-        std::ofstream savekey("poe.key");
-        savekey << targetkey << '\n'
-                << lifeflask << '\n'
-                << manaflask << '\n'
-                << decop1 << ' ' << decoc1 << '\n'
-                << decop2 << ' ' << decoc2 << '\n'
-                << lifep << ' ' << lifec << '\n'
-                << midlifep << ' ' << midlifec << '\n'
-                << manap << ' ' << manac << '\n'
-                ;
-
-        savekey.close();
-        screen::unstick();
+    if (!settings::load()) {
+        printf("NOTE: first run, right click on two decorations\n");
+        settings::decor.grab(VK_RBUTTON);
+        settings::menu();
     }
 
-    printf("using key %d, checking life at (%d, %d)\n"
-           "delete poe.key and re-run to change this\n",
-           targetkey, lifep.x, lifep.y);
-
+    printf("press any key on this window to enter the settings menu\n");
     while (running) {
         Sleep(10);
+
+        // sadly this needs to run first
+        if (_kbhit()) {
+            printf("entering config menu, checks are now NOT running\n");
+            while (_kbhit()) {
+                _getch();
+            }
+            settings::menu();
+            printf("exiting config menu, checks are now running\n");
+        }
+
         input::step();
-        if (!checkdeco()) {
+        if (!settings::decor.check()) {
             continue; // don't check anything if decoration is not there
         }
 
-        // check deco twice to avoid false positives
-        for (auto&& action: actions) {
-            if (action.check() && checkdeco()) {
+        for (auto&& action: settings::actions) {
+            // check deco twice to avoid false positives
+            if (action.enabled && action.check() && settings::decor.check()) {
                 printf("running action %s\n", action.desc.c_str());
                 if (action.flask) {
                     kbd::tap(action.flask);
