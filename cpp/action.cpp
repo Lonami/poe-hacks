@@ -18,11 +18,10 @@ bool Action::check() {
     if (this->delay) {
         if ((GetTickCount() - this->last_use) < this->delay) {
             return false;
-        } else {
-            this->last_use = GetTickCount();
         }
     }
 
+    this->last_use = GetTickCount();
     return true;
 }
 
