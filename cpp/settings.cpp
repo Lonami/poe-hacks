@@ -78,7 +78,7 @@ void actions_menu() {
         case 'D': case 'd':
             if (!actions.empty()) {
                 actions.erase(actions.begin() + index);
-                if (index == actions.size()) {
+                if (!actions.empty() && index == actions.size()) {
                     --index;
                 }
                 draw_actions_menu();
