@@ -15,28 +15,49 @@ int logout_key = 0;
 Decor decor;
 std::vector<Action> actions  {};
 
+void draw_plugins() {
+    cmd::cls();
+    for (auto&& action: actions) {
+        printf("[%c] ", action.enabled ? 'x' : ' ');
+        if (action.flask == 0) {
+            printf("logout ");
+        } else {
+            printf("use flask %c ");
+        }
+
+        if (action.delay == 0) {
+            printf("immediatly on ");
+        } else {
+            printf("every %dms on ", action.delay);
+        }
+
+        if (action.skill != 0) {
+            printf("skill ");
+            if (action.skill >= '0') {
+                putchar(action.skill);
+            } else {
+                printf("%d", action.skill);
+            }
+        } else if (action.point.x < width / 2) {
+            printf("life change");
+        } else {
+            printf("mana change");
+        }
+
+        if (action.desc.empty()) {
+            printf(" (no description)\n");
+        } else {
+            printf(": %s\n", action.desc.c_str());
+        }
+    }
+    printf(" <  save and exit (e/esc)\n");
+}
+
 void plugins() {
     unsigned char ch1, ch2;
     int index = 0;
 
-    cmd::cls();
-    for (auto&& action: actions) {
-        printf("[%c] %s, flask %c with delay %d, ",
-               action.enabled ? 'x' : ' ',
-               action.desc.c_str(),
-               action.flask,
-               action.delay);
-
-        if (action.skill) {
-            printf("skill %c\n", action.skill);
-        } else if (action.point.x < width / 2) {
-            printf("life point\n");
-        } else {
-            printf("mana point\n");
-        }
-    }
-    printf(" <  save and exit (e/esc)\n");
-
+    draw_plugins();
     cmd::set(1, index);
     while (true) {
         ch1 = _getch();
@@ -53,17 +74,19 @@ void plugins() {
                 return;
             }
             break;
-        case VK_BACK:
         case VK_DELETE:
-        case 'D':
-            actions.erase(actions.begin() + index);
-            if (!actions.empty() && index == actions.size()) {
-                --index;
-                cmd::set(0, index);
+        case 'D': case 'd':
+            if (!actions.empty()) {
+                if (index == actions.size()) {
+                    --index;
+                }
+                draw_plugins();
+                cmd::set(1, index);
             }
             break;
+        case VK_BACK:
         case VK_ESCAPE:
-        case 'E':
+        case 'E': case 'e':
             return;
         case 0xe0:
             switch (ch2) {
@@ -198,8 +221,9 @@ void menu() {
             }
             break;
 
+        case VK_BACK:
         case VK_ESCAPE:
-        case 'E':
+        case 'E': case 'e':
             return;
 
         case 0xe0:
