@@ -138,7 +138,9 @@ void add_action(int index) {
     if (index == 4) {
         printf("press the key or click with the skill: ");
         fflush(stdout);
-        action.skill = input::wait();
+        while ((action.skill = input::wait()) == VK_RETURN) {
+            Sleep(10);
+        }
     } else {
         printf("right click the life/mana point to detect...");
         fflush(stdout);
