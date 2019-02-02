@@ -186,7 +186,9 @@ int main() {
         for (auto&& action: settings::actions) {
             // check deco twice to avoid false positives
             if (action.enabled && action.check() && settings::decor.check()) {
-                printf("running action %s\n", action.desc.c_str());
+                printf("! running ");
+                action.print(stdout);
+                putchar('\n');
                 if (action.flask) {
                     kbd::tap(action.flask);
                 } else if (logout()) {
