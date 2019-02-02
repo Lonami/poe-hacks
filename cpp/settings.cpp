@@ -77,6 +77,7 @@ void actions_menu() {
         case VK_DELETE:
         case 'D': case 'd':
             if (!actions.empty()) {
+                actions.erase(actions.begin() + index);
                 if (index == actions.size()) {
                     --index;
                 }
