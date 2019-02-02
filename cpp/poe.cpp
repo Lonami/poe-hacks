@@ -143,18 +143,20 @@ int main() {
         settings::menu();
     }
 
-    printf("press any key on this window to enter the settings menu\n");
+    printf("press enter on this window to enter the settings menu\n");
     while (running) {
         Sleep(10);
 
         // sadly this needs to run first
         if (_kbhit()) {
-            printf("entering config menu, checks are now NOT running\n");
-            while (_kbhit()) {
+            if (_getch() == '\r') {
+                _getch();
+                printf("entering config menu, checks are now NOT running\n");
+                settings::menu();
+                printf("exiting config menu, checks are now running\n");
+            } else {
                 _getch();
             }
-            settings::menu();
-            printf("exiting config menu, checks are now running\n");
         }
 
         input::step();
