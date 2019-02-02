@@ -15,14 +15,14 @@ int logout_key = 0;
 Decor decor;
 std::vector<Action> actions  {};
 
-void draw_plugins() {
+void draw_actions_menu() {
     cmd::cls();
     for (auto&& action: actions) {
         printf("[%c] ", action.enabled ? 'x' : ' ');
         if (action.flask == 0) {
             printf("logout ");
         } else {
-            printf("use flask %c ");
+            printf("use flask %c ", action.flask);
         }
 
         if (action.delay == 0) {
@@ -53,11 +53,11 @@ void draw_plugins() {
     printf(" <  save and exit (e/esc)\n");
 }
 
-void plugins() {
+void actions_menu() {
     unsigned char ch1, ch2;
     int index = 0;
 
-    draw_plugins();
+    draw_actions_menu();
     cmd::set(1, index);
     while (true) {
         ch1 = _getch();
@@ -80,7 +80,7 @@ void plugins() {
                 if (index == actions.size()) {
                     --index;
                 }
-                draw_plugins();
+                draw_actions_menu();
                 cmd::set(1, index);
             }
             break;
@@ -161,12 +161,12 @@ void menu() {
     while (true) {
         if (dirty) {
             cmd::cls();
-            printf("[ ] change decoration\n");
+            printf("[ ] view, enable, disable and delete actions\n");
             printf("[ ] set logout key (current: %c)\n", logout_key);
             printf("[ ] add autologout on screen point change\n");
             printf("[ ] add autoflask on screen point change\n");
             printf("[ ] add autoflask on skill use\n");
-            printf("[ ] view, enable, disable and delete actions\n");
+            printf("[ ] change decoration\n");
             printf(" <  exit config, run program\n");
             printf("(use arrow keys to move)");
             fflush(stdout);
@@ -195,11 +195,8 @@ void menu() {
         case VK_SPACE:
         case VK_RETURN:
             switch (index) {
-            case 0: // decoration
-                printf("decoration is used to detect when you're playing\n");
-                printf("right click on two points that won't change in-game");
-                fflush(stdout);
-                decor.grab(VK_RBUTTON);
+            case 0: // modify actions
+                actions_menu();
                 break;
             case 1: // logout key
                 printf("logout key is used when you need to manually quick dc\n");
@@ -213,8 +210,11 @@ void menu() {
             case 4:
                 add_action(index);
                 break;
-            case 5: // modify actions
-                plugins();
+            case 5: // decoration
+                printf("decoration is used to detect when you're playing\n");
+                printf("right click on two points that won't change in-game");
+                fflush(stdout);
+                decor.grab(VK_RBUTTON);
                 break;
             case 6: // exit config
                 return;
