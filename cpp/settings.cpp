@@ -38,6 +38,7 @@ void actions_menu() {
         switch (ch1) {
         case VK_RETURN:
         case VK_SPACE:
+        menu_select:
             if (index != actions.size()) {
                 actions[index].enabled = !actions[index].enabled;
                 cmd::set(1, index);
@@ -64,10 +65,14 @@ void actions_menu() {
             return;
         case 0xe0:
             switch (ch2) {
+            case 75: // left
+                return;
             case 72: // up
                 index = (index > 0 ? index - 1 : actions.size());
                 cmd::set(1, index);
                 break;
+            case 77: // right
+                goto menu_select;
             case 80: // down
                 index = (index < actions.size() ? index + 1 : 0);
                 cmd::set(1, index);
@@ -136,6 +141,7 @@ void menu() {
 
     while (true) {
         if (dirty) {
+            dirty = false;
             cmd::cls();
             printf("[ ] view, enable, disable and delete actions\n");
             printf("[ ] set logout key (current: %c)\n", logout_key);
@@ -153,11 +159,6 @@ void menu() {
         ch1 = _getch();
         ch2 = _getch();
 
-        dirty = ch1 != 0xe0;
-        if (dirty) {
-            cmd::cls();
-        }
-
         switch (ch1) {
         case '1':
         case '2':
@@ -170,6 +171,9 @@ void menu() {
             // fallthrough
         case VK_SPACE:
         case VK_RETURN:
+        menu_select:
+            cmd::cls();
+            dirty = true;
             switch (index) {
             case 0: // modify actions
                 actions_menu();
@@ -204,10 +208,14 @@ void menu() {
 
         case 0xe0:
             switch (ch2) {
+            case 75: // left
+                return;
             case 72: // up
                 index = (index > 0 ? index - 1 : 6);
                 cmd::set(1, index);
                 break;
+            case 77: // right
+                goto menu_select;
             case 80: // down
                 index = (index < 6 ? index + 1 : 0);
                 cmd::set(1, index);

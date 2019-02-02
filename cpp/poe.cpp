@@ -133,6 +133,7 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 }
 
 int main() {
+    unsigned char ch1, ch2;
     setup();
     input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
@@ -166,13 +167,14 @@ int main() {
 
         // sadly this needs to run first
         if (_kbhit()) {
-            if (_getch() == '\r') {
-                _getch();
+            ch1 = _getch();
+            ch2 = _getch();
+            // return (enter) or arrow, right
+            if (ch1 == '\r' || (ch1 == 0xe0 && ch2 == 77)) {
                 printf("entering config menu, checks are now NOT running\n");
                 settings::menu();
+                cmd::cls();
                 printf("exiting config menu, checks are now running\n");
-            } else {
-                _getch();
             }
         }
 
