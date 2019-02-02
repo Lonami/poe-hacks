@@ -122,8 +122,6 @@ void add_action(int index) {
         action.skill = 0;
         action.point = mouse::get();
         action.color = screen::get(action.point);
-        _getch();
-        _getch();
     }
 
     actions.push_back(action);
