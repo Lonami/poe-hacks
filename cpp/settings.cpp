@@ -1,6 +1,7 @@
 #include "settings.h"
 
 #include <vector>
+#include <cstdio>
 #include <fstream>
 #include <conio.h>
 
@@ -19,36 +20,8 @@ void draw_actions_menu() {
     cmd::cls();
     for (auto&& action: actions) {
         printf("[%c] ", action.enabled ? 'x' : ' ');
-        if (action.flask == 0) {
-            printf("logout ");
-        } else {
-            printf("use flask %c ", action.flask);
-        }
-
-        if (action.delay == 0) {
-            printf("immediatly on ");
-        } else {
-            printf("every %dms on ", action.delay);
-        }
-
-        if (action.skill != 0) {
-            printf("skill ");
-            if (action.skill >= '0') {
-                putchar(action.skill);
-            } else {
-                printf("%d", action.skill);
-            }
-        } else if (action.point.x < width / 2) {
-            printf("life change");
-        } else {
-            printf("mana change");
-        }
-
-        if (action.desc.empty()) {
-            printf(" (no description)\n");
-        } else {
-            printf(": %s\n", action.desc.c_str());
-        }
+        action.print(stdout);
+        putchar('\n');
     }
     printf(" <  save and exit (e/esc)\n");
 }

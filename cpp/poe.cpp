@@ -143,7 +143,24 @@ int main() {
         settings::menu();
     }
 
+    int count = 0;
+    for (auto&& action: settings::actions) {
+        if (action.enabled) {
+            ++count;
+        }
+    }
+
     printf("press enter on this window to enter the settings menu\n");
+    printf("loaded %d actions, %d enabled:\n",
+            settings::actions.size(), count);
+    for (auto&& action: settings::actions) {
+        if (action.enabled) {
+            printf("* ");
+            action.print(stdout);
+            putchar('\n');
+        }
+    }
+
     while (running) {
         Sleep(10);
 

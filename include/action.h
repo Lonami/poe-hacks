@@ -31,6 +31,9 @@ struct Action {
 
     // checks whether the action should be executed
     bool check();
+
+    // prints the action in a friendly way to the stream
+    void print(FILE* out);
 };
 
 std::ostream& operator<<(std::ostream& lhs, const Action& rhs);
