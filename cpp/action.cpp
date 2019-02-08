@@ -74,6 +74,7 @@ std::istream& operator>>(std::istream& lhs, Action& rhs) {
         >> rhs.point
         >> rhs.color;
 
-    std::getline(lhs, rhs.desc);
+    std::getline(lhs, rhs.desc); // end of line for color
+    std::getline(lhs, rhs.desc); // actual description line
     return lhs;
 }

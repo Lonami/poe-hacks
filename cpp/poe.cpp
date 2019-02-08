@@ -118,7 +118,7 @@ bool logout() {
 void oninput(int key, bool down) {
     if (down) {
         if (key == settings::logout_key) {
-            printf("logout key %c pressed!", key);
+            printf("logout key %c pressed!\n", key);
             logout();
         }
     }

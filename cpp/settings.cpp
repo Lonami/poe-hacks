@@ -252,17 +252,7 @@ bool load() {
 
 void save() {
     std::ofstream fout("poe.key");
-    
-    // key that when hit will logout
-    extern int logout_key;
-    
-    // decoration to check to make sure we're in game
-    extern Decor decor;
 
-    // actions loaded by the settings and used
-    extern std::vector<Action> actions;
-
-    
     fout << logout_key << '\n'
          << decor << '\n'
          << actions.size() << '\n';
