@@ -56,17 +56,18 @@ void Action::print(FILE* out) {
 }
 
 std::ostream& operator<<(std::ostream& lhs, const Action& rhs) {
-    lhs << rhs.enabled << '\n'
-        << rhs.flask << '\n'
-        << rhs.delay << '\n'
-        << rhs.skill << '\n'
-        << rhs.point << '\n'
-        << rhs.color << '\n'
+    lhs << rhs.enabled << ' '
+        << rhs.flask << ' '
+        << rhs.delay << ' '
+        << rhs.skill << ' '
+        << rhs.point << ' '
+        << rhs.color << ' '
         << rhs.desc;
     return lhs;
 }
 
 std::istream& operator>>(std::istream& lhs, Action& rhs) {
+    char space;
     lhs >> rhs.enabled
         >> rhs.flask
         >> rhs.delay
@@ -74,7 +75,7 @@ std::istream& operator>>(std::istream& lhs, Action& rhs) {
         >> rhs.point
         >> rhs.color;
 
-    std::getline(lhs, rhs.desc); // end of line for color
-    std::getline(lhs, rhs.desc); // actual description line
+    lhs.read(&space, 1); // lhs >> space; would chomp the first non-whitespace
+    std::getline(lhs, rhs.desc);
     return lhs;
 }
