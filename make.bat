@@ -4,7 +4,7 @@ mkdir bin > NUL 2>&1
 del bin\*.exe > NUL 2>&1
 
 set WINKIT=C:\Program Files (x86)\Windows Kits\10
-set WINVER=10.0.17134.0
+set WINVER=10.0.17763.0
 
 set WINBIN=%WINKIT%\bin\%WINVER%\x64
 set WINLIB=%WINKIT%\Lib\%WINVER%\um\x64
