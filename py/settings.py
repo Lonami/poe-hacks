@@ -6,10 +6,7 @@ import interop
 
 
 def key_name(key):
-    try:
-        return interop.KEY_NAMES[key]
-    except IndexError:
-        return '?'
+    return interop.KEY_NAMES[key][-1] or '?'
 
 
 class Decoration:
