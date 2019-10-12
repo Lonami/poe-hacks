@@ -2,18 +2,25 @@
 
 #include <Windows.h>
 #include <cstdio>
+#include <stdio.h>
 
 #include "input.h"
+#include "settings.h"
+
+void Action::set_point(float percent, bool mana) {
+    if (mana) {
+        this->point.x = (int)(settings::width * MANA_X);
+        this->point.y = (int)(settings::height * (MANA_Y0 + (MANA_Y1 - MANA_Y0) * percent));
+    } else {
+        this->point.x = (int)(settings::width * LIFE_X);
+        this->point.y = (int)(settings::height * (LIFE_Y0 + (LIFE_Y1 - LIFE_Y0) * percent));
+    }
+    this->color = screen::get(this->point);
+}
 
 bool Action::check() {
-    if (this->skill) {
-        if (!kbd::down(this->skill)) {
-            return false;
-        }
-    } else {
-        if (screen::get(this->point) == this->color) {
-            return false;
-        }
+    if (screen::get(this->point) == this->color) {
+        return false;
     }
 
     if (this->delay) {
@@ -26,56 +33,43 @@ bool Action::check() {
     return true;
 }
 
-void Action::print(FILE* out) {
-    if (this->flask == 0) {
-        fprintf(out, "logout ");
-    } else {
-        fprintf(out, "use flask %c ", this->flask);
-    }
-
-    if (this->delay == 0) {
-        fprintf(out, "immediatly on ");
-    } else {
-        fprintf(out, "every %dms on ", this->delay);
-    }
-
-    if (this->skill != 0) {
-        fprintf(out, "skill ");
-        fprintf(out, (this->skill >= '0' ? "%c" : "%d"), this->skill);
-    } else if (this->point.x < 200) {
-        fprintf(out, "life change");
-    } else {
-        fprintf(out, "mana change");
-    }
-
-    if (this->desc.empty()) {
-        fprintf(out, " (no description)");
-    } else {
-        fprintf(out, ": %s", this->desc.c_str());
-    }
-}
-
-std::ostream& operator<<(std::ostream& lhs, const Action& rhs) {
-    lhs << rhs.enabled << ' '
-        << rhs.flask << ' '
-        << rhs.delay << ' '
-        << rhs.skill << ' '
-        << rhs.point << ' '
-        << rhs.color << ' '
-        << rhs.desc;
-    return lhs;
-}
-
 std::istream& operator>>(std::istream& lhs, Action& rhs) {
-    char space;
-    lhs >> rhs.enabled
-        >> rhs.flask
-        >> rhs.delay
-        >> rhs.skill
-        >> rhs.point
-        >> rhs.color;
+    char kind, key;
+    float percent;
+    lhs >> kind
+        >> key
+        >> percent
+        >> rhs.delay;
 
-    lhs.read(&space, 1); // lhs >> space; would chomp the first non-whitespace
-    std::getline(lhs, rhs.desc);
+    // key should be uppercase
+    if ('a' <= key && key <= 'z') {
+        key += 'A' - 'a';
+    }
+    rhs.flask = (unsigned int)key;
+
+    // figure out location with percent
+    if (percent < 0) {
+        fprintf(stderr, "percent too low (%f), using 0%%\n", percent);
+        percent = 0;
+    } else if (percent > 100) {
+        fprintf(stderr, "percent too high (%f), using 100%%\n", percent);
+        percent = 1;
+    } else {
+        percent /= 100;
+    }
+
+    // (M)ana or (L)ife
+    if (kind == 'm' || kind == 'M') {
+        rhs.set_point(percent, true);
+        printf("loaded mana on key %c at %.1f%%\n", key, percent * 100);
+    } else {
+        if (kind != 'l' && kind != 'L') {
+            fprintf(stderr, "unknown point type '%c', assuming L; must be L(ife) or M(ana)\n", kind);
+        }
+        rhs.set_point(percent, false);
+        printf("loaded life on key %c at %.1f%%\n", key, percent * 100);
+    }
+
+    rhs.last_use = 0;
     return lhs;
 }

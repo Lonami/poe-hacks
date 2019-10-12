@@ -13,6 +13,7 @@
 #include "action.h"
 #include "settings.h"
 
+
 // used declarations for iphlpapi.dll
 HMODULE iphlpapi;
 
@@ -118,7 +119,7 @@ bool logout() {
 void oninput(int key, bool down) {
     if (down) {
         if (key == settings::logout_key) {
-            printf("logout key %c pressed!\n", key);
+            printf("logout key pressed!\n");
             logout();
         }
     }
@@ -134,50 +135,21 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 }
 
 int main() {
-    unsigned char ch1, ch2;
     setup();
     input::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
-    if (!settings::load()) {
-        printf("NOTE: first run, right click on two decorations\n");
-        settings::decor.grab(VK_RBUTTON);
-        settings::menu();
-    }
+    printf("waiting for right click...\n");
+    input::wait(VK_RBUTTON);
 
-    int count = 0;
-    for (auto&& action: settings::actions) {
-        if (action.enabled) {
-            ++count;
-        }
-    }
-
-    printf("press enter on this window to enter the settings menu\n");
-    printf("loaded %d actions, %d enabled:\n",
-            settings::actions.size(), count);
-    for (auto&& action: settings::actions) {
-        if (action.enabled) {
-            printf("* ");
-            action.print(stdout);
-            putchar('\n');
-        }
+    if (settings::load()) {
+        printf("settings loaded successfully\n");
+    } else {
+        printf("NOTE: no poe.key found! no checks running!\n");
     }
 
     while (running) {
         Sleep(10);
-
-        // sadly this needs to run first
-        if (_kbhit()) {
-            ch1 = _getch();
-            ch2 = _getch();
-            // return (enter) or arrow, right
-            if (ch1 == '\r' || (ch1 == 0xe0 && ch2 == 77)) {
-                printf("entering config menu, checks are now NOT running\n");
-                settings::menu();
-                cmd::cls();
-                printf("exiting config menu, checks are now running\n");
-            }
-        }
 
         input::step();
         if (!settings::decor.check()) {
@@ -186,15 +158,13 @@ int main() {
 
         for (auto&& action: settings::actions) {
             // check deco twice to avoid false positives
-            if (action.enabled && action.check() && settings::decor.check()) {
-                printf("! running ");
-                action.print(stdout);
-                putchar('\n');
+            if (action.check() && settings::decor.check()) {
                 if (action.flask) {
+                    printf("! using flask %c\n", (char)action.flask);
                     kbd::tap(action.flask);
-                } else if (logout()) {
-                    Sleep(100); // don't spam logout if it worked
-                    break;
+                } else {
+                    printf("! autokicking on low life\n");
+                    logout();
                 }
             }
         }
