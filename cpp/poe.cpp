@@ -121,6 +121,10 @@ void oninput(int key, bool down) {
         if (key == settings::logout_key) {
             printf("logout key pressed!\n");
             logout();
+        } else if (key == VK_F5) {
+            kbd::tap(VK_RETURN);
+            kbd::type("/HIDEOUT");
+            kbd::tap(VK_RETURN);
         }
     }
 }
