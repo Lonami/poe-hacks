@@ -20,6 +20,9 @@ struct Action {
     Point point;
     Color color;
 
+    // trigger a flask when a skill is pressed instead (zero=point)
+    int skill_key;
+
     // confgigures the point and color (for life or mana)
     void set_point(float percent, bool mana);
 

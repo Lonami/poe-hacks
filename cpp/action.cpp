@@ -16,11 +16,18 @@ void Action::set_point(float percent, bool mana) {
         this->point.y = (int)(settings::height * (LIFE_Y0 + (LIFE_Y1 - LIFE_Y0) * percent));
     }
     this->color = screen::get(this->point);
+    this->skill_key = 0;
 }
 
 bool Action::check() {
-    if (screen::get(this->point) == this->color) {
-        return false;
+    if (this->skill_key) {
+        if (!kbd::down(this->skill_key)) {
+            return false;
+        }
+    } else {
+        if (screen::get(this->point) == this->color) {
+            return false;
+        }
     }
 
     if (this->delay) {
@@ -35,10 +42,11 @@ bool Action::check() {
 
 std::istream& operator>>(std::istream& lhs, Action& rhs) {
     char kind, key;
+    int value;
     float percent;
     lhs >> kind
         >> key
-        >> percent
+        >> value
         >> rhs.delay;
 
     // key should be uppercase
@@ -48,26 +56,34 @@ std::istream& operator>>(std::istream& lhs, Action& rhs) {
     rhs.flask = (unsigned int)key;
 
     // figure out location with percent
-    if (percent < 0) {
-        fprintf(stderr, "percent too low (%f), using 0%%\n", percent);
+    if (value < 0) {
         percent = 0;
-    } else if (percent > 100) {
-        fprintf(stderr, "percent too high (%f), using 100%%\n", percent);
+    } else if (value > 100) {
         percent = 1;
     } else {
-        percent /= 100;
+        percent = ((float)value) / 100.0f;
     }
 
     // (M)ana or (L)ife
-    if (kind == 'm' || kind == 'M') {
-        rhs.set_point(percent, true);
-        printf("loaded mana on key %c at %.1f%%\n", key, percent * 100);
-    } else {
-        if (kind != 'l' && kind != 'L') {
-            fprintf(stderr, "unknown point type '%c', assuming L; must be L(ife) or M(ana)\n", kind);
-        }
-        rhs.set_point(percent, false);
-        printf("loaded life on key %c at %.1f%%\n", key, percent * 100);
+    switch (kind) {
+        case 'M':
+        case 'm':
+            rhs.set_point(percent, true);
+            printf("loaded mana on key %c at %.1f%%\n", key, percent * 100);
+            break;
+        case 'l':
+        case 'L':
+            rhs.set_point(percent, false);
+            printf("loaded life on key %c at %.1f%%\n", key, percent * 100);
+            break;
+        case 'k':
+        case 'K':
+            rhs.skill_key = value;
+            printf("loaded flask on key %c when using %d\n", key, value);
+            break;
+        default:
+            fprintf(stderr, "unknown point type '%c' won't do anything\n", kind);
+            break;
     }
 
     rhs.last_use = 0;
