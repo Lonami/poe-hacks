@@ -21,7 +21,7 @@ use winapi::um::handleapi::CloseHandle;
 const ANY_SIZE: usize = 1;
 
 // From https://github.com/retep998/winapi-rs/pull/802
-ENUM! {#[allow(non_camel_case_types)] enum TCP_TABLE_CLASS {
+ENUM! {enum TcpTableClass {
     TCP_TABLE_BASIC_LISTENER = 0,
     TCP_TABLE_BASIC_CONNECTIONS = 1,
     TCP_TABLE_BASIC_ALL = 2,
@@ -33,7 +33,7 @@ ENUM! {#[allow(non_camel_case_types)] enum TCP_TABLE_CLASS {
     TCP_TABLE_OWNER_MODULE_ALL = 8,
 }}
 #[allow(non_camel_case_types)]
-pub type PTCP_TABLE_CLASS = *mut TCP_TABLE_CLASS;
+pub type PTCP_TABLE_CLASS = *mut TcpTableClass;
 
 STRUCT! {#[allow(non_snake_case)] struct MIB_TCPROW_OWNER_PID {
     dwState: DWORD,
@@ -71,7 +71,7 @@ extern "system" {
         pdwSize: PDWORD,
         bOrder: BOOL,
         ulAf: ULONG,
-        TableClass: TCP_TABLE_CLASS,
+        TableClass: TcpTableClass,
         Reserved: ULONG,
     ) -> DWORD;
 
