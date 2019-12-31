@@ -3,7 +3,7 @@
 use std::io::Error;
 use std::mem::MaybeUninit;
 
-use winapi::um::winuser::{GetDC, GetDesktopWindow, GetWindowRect};
+use winapi::um::winuser::{GetDC, ReleaseDC, GetDesktopWindow, GetWindowRect};
 
 use winapi::um::wingdi::{GetPixel, CLR_INVALID};
 
@@ -31,19 +31,25 @@ pub fn size() -> Result<(usize, usize), Error> {
 /// # References
 ///
 /// https://docs.microsoft.com/en-us/windows/desktop/api/wingdi/nf-wingdi-getpixel
-pub fn color(x: usize, y: usize) -> Option<(u8, u8, u8)> {
-    // TODO cache this handle (C used static)
+pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), &'static str> {
+    // NOTE: Every handle must be released or it will eventually start to fail.
+    // TODO: review the note above everywhere in the codebase (for getdc uses)
+    // TODO: cache this handle (C used static)
     unsafe {
         let dc = GetDC(std::ptr::null_mut());
+        if dc.is_null() {
+            return Err("failed to get dc");
+        }
         let color = GetPixel(dc, x as i32, y as i32);
         if color == CLR_INVALID {
-            None
-        } else {
-            Some((
-                ((color >> 0) & 0xff) as u8,
-                ((color >> 2) & 0xff) as u8,
-                ((color >> 4) & 0xff) as u8,
-            ))
+            ReleaseDC(std::ptr::null_mut(), dc);
+            return Err("failed to get pixel");
         }
+        ReleaseDC(std::ptr::null_mut(), dc);
+        Ok((
+            ((color >> 0) & 0xff) as u8,
+            ((color >> 2) & 0xff) as u8,
+            ((color >> 4) & 0xff) as u8,
+        ))
     }
 }

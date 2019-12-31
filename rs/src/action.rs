@@ -54,7 +54,7 @@ pub struct ActionSet {
 
 impl ScreenPoint {
     fn new(x: usize, y: usize) -> Option<Self> {
-        if let Some(rgb) = input::screen::color(x, y) {
+        if let Ok(rgb) = input::screen::color(x, y) {
             Some(Self { x, y, rgb })
         } else {
             None
@@ -90,7 +90,7 @@ impl ScreenPoint {
     }
 
     fn changed(&self) -> Option<bool> {
-        if let Some(rgb) = input::screen::color(self.x, self.y) {
+        if let Ok(rgb) = input::screen::color(self.x, self.y) {
             Some(self.rgb != rgb)
         } else {
             None
@@ -348,6 +348,7 @@ impl ActionSet {
                     }
                     Err(message) => {
                         eprintln!("warning: checking action failed: {}", message);
+                        std::thread::sleep(std::time::Duration::from_millis(1000));
                     }
                 });
         }
