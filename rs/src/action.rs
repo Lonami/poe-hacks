@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::time::{Duration, Instant};
+use std::thread::sleep;
 
 const LIFE_X: f64 = 0.06;
 const MANA_X: f64 = 0.94;
@@ -22,6 +23,7 @@ const DECO_Y1: f64 = 0.960;
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
+#[derive(Clone)]
 struct ScreenPoint {
     x: usize,
     y: usize,
@@ -149,7 +151,12 @@ impl PostCondition {
                 None => Err("could not find poe running"),
                 Some(pid) => match proc::kill_network(pid) {
                     Err(_) => Err("failed to kill poe network"),
-                    Ok(_) => Ok(()),
+                    Ok(n) => {
+                        if n > 0 {
+                            sleep(DISCONNECT_DELAY);
+                        }
+                        Ok(())
+                    }
                 },
             },
         }
@@ -274,14 +281,13 @@ impl Action {
         }))
     }
 
-    fn check(&mut self) -> Result<bool, &'static str> {
-        if self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay {
-            self.last_trigger = Instant::now();
-            self.post.act()?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    fn check(&self) -> Result<bool, &'static str> {
+        Ok(self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay)
+    }
+
+    fn trigger(&mut self) -> Result<(), &'static str> {
+        self.last_trigger = Instant::now();
+        self.post.act()
     }
 }
 
@@ -332,26 +338,34 @@ impl ActionSet {
     }
 
     pub fn check_all(&mut self) {
-        if self.decorations.iter().all(|decoration| {
+        let decorations = self.decorations.clone();
+        let check_deco = || decorations.iter().all(|decoration| {
             if let Some(changed) = decoration.changed() {
                 !changed
             } else {
-                eprintln!("failed to check decoration pixel");
-                std::thread::sleep(std::time::Duration::from_millis(1000));
+                eprintln!("warning: failed to check decoration pixel");
                 false
             }
-        }) {
-            self.actions
-                .iter_mut()
-                .for_each(|action| match action.check() {
-                    Ok(_ran) => {
-                    }
+        });
+
+        if !check_deco() {
+            return;
+        }
+        self.actions
+            .iter_mut()
+            .for_each(|action| {
+                match action.check() {
+                    Ok(true) if check_deco() => {
+                        if let Err(message) = action.trigger() {
+                            eprintln!("warning: running action failed: {}", message);
+                        }
+                    },
                     Err(message) => {
                         eprintln!("warning: checking action failed: {}", message);
-                        std::thread::sleep(std::time::Duration::from_millis(1000));
-                    }
-                });
-        }
+                    },
+                    _ => { }
+                }
+            });
     }
 }
 

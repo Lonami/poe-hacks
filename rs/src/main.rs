@@ -1,4 +1,5 @@
 mod action;
+
 use crate::action::ActionSet;
 use rshacks::input;
 use std::thread::sleep;
@@ -7,6 +8,11 @@ use std::time::Duration;
 const DELAY: Duration = Duration::from_millis(10);
 
 fn main() {
+    if input::screen::color(0, 0).is_err() {
+        eprintln!("cannot get color from screen");
+        return;
+    }
+
     eprintln!("waiting for right click...");
     while !input::keyboard::is_down(0x02) {
         sleep(DELAY);
