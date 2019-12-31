@@ -118,3 +118,12 @@ pub fn press(vk: u16) {
 pub fn is_down(vk: u16) -> bool {
     unsafe { (GetKeyState(vk as i32) & 0x80) != 0 }
 }
+
+/// Get the Virtual Key Code corresponding to the specified character.
+///
+/// # References
+///
+/// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-vkkeyscana
+pub fn get_vk(character: u8) -> u16 {
+    unsafe { (VkKeyScanA(character as i8) as u16) & 0xffu16 }
+}
