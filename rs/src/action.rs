@@ -33,6 +33,10 @@ const DECO_Y0: f64 = 1.0 - (130.0 / 1080.0);
 const DECO_X1: f64 = 69.0 / 1920.0;
 const DECO_Y1: f64 = 1.0 - (44.0 / 1080.0);
 
+// The color distance threshold after which we consider it to have changed.
+// Experimental values (blood magic + auras with some ES to test at 80%).
+const COLOR_DISTANCE_SQ: i32 = 70 * 70;
+
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
@@ -126,6 +130,22 @@ impl ScreenPoint {
             None
         }
     }
+
+    fn different(&self) -> Option<bool> {
+        // It's a constant so the compiler should optimize this branch
+        if COLOR_DISTANCE_SQ == 1 {
+            self.changed()
+        } else if let Ok(rgb) = input::screen::color(self.x, self.y) {
+            Some(
+                (self.rgb.0 as i32 - rgb.0 as i32).pow(2)
+                    + (self.rgb.1 as i32 - rgb.1 as i32).pow(2)
+                    + (self.rgb.2 as i32 - rgb.2 as i32).pow(2)
+                    >= COLOR_DISTANCE_SQ,
+            )
+        } else {
+            None
+        }
+    }
 }
 
 fn parse_percentage(word: &str) -> Result<f64, &'static str> {
@@ -164,7 +184,7 @@ impl PreCondition {
     fn is_valid(&self) -> Result<bool, &'static str> {
         match self {
             Self::ScreenChange { point } => {
-                if let Some(changed) = point.changed() {
+                if let Some(changed) = point.different() {
                     Ok(changed)
                 } else {
                     Err("failed to detect color change")
