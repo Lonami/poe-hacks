@@ -1,5 +1,5 @@
-use winapi::um::winuser::GetDC;
 use winapi::shared::windef::HDC;
+use winapi::um::winuser::GetDC;
 
 // TODO: Worth releasing prior to closing the app?
 static mut DESKTOP_DC: HDC = std::ptr::null_mut();

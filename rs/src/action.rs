@@ -3,8 +3,10 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
-use std::time::{Duration, Instant};
 use std::thread::sleep;
+use std::time::{Duration, Instant};
+
+use winapi::um::winuser::VK_RETURN;
 
 const LIFE_X: f64 = 0.06;
 const MANA_X: f64 = 0.94;
@@ -38,6 +40,7 @@ enum PreCondition {
 enum PostCondition {
     PressKey { vk: u16 },
     Disconnect,
+    Type { string: String },
 }
 
 struct Action {
@@ -159,6 +162,12 @@ impl PostCondition {
                     }
                 },
             },
+            Self::Type { string } => {
+                input::keyboard::press(VK_RETURN as u16);
+                input::keyboard::type_string(&string);
+                input::keyboard::press(VK_RETURN as u16);
+                Ok(())
+            }
         }
     }
 }
@@ -184,6 +193,7 @@ impl Action {
 
             WaitPostKind,
             WaitPostValue,
+            WaitPostRemaining,
 
             WaitDelayValue,
         };
@@ -242,6 +252,12 @@ impl Action {
                         WaitKeyword
                     }
                     "flask" => WaitPostValue,
+                    "type" => {
+                        post = Some(PostCondition::Type {
+                            string: String::new(),
+                        });
+                        WaitPostRemaining
+                    }
                     _ => return Err(format!("found unknown action '{}'", word)),
                 },
                 WaitPostValue => {
@@ -249,6 +265,18 @@ impl Action {
                         vk: parse_vk(word)?,
                     });
                     WaitKeyword
+                }
+                WaitPostRemaining => {
+                    match post {
+                        Some(PostCondition::Type { ref mut string }) => {
+                            if !string.is_empty() {
+                                string.push(' ');
+                            }
+                            string.push_str(word);
+                        }
+                        _ => return Err(format!("cannot parse remaining unless action is typing")),
+                    }
+                    WaitPostRemaining
                 }
 
                 WaitDelayValue => {
@@ -339,32 +367,32 @@ impl ActionSet {
 
     pub fn check_all(&mut self) {
         let decorations = self.decorations.clone();
-        let check_deco = || decorations.iter().all(|decoration| {
-            if let Some(changed) = decoration.changed() {
-                !changed
-            } else {
-                eprintln!("warning: failed to check decoration pixel");
-                false
-            }
-        });
+        let check_deco = || {
+            decorations.iter().all(|decoration| {
+                if let Some(changed) = decoration.changed() {
+                    !changed
+                } else {
+                    eprintln!("warning: failed to check decoration pixel");
+                    false
+                }
+            })
+        };
 
         if !check_deco() {
             return;
         }
         self.actions
             .iter_mut()
-            .for_each(|action| {
-                match action.check() {
-                    Ok(true) if check_deco() => {
-                        if let Err(message) = action.trigger() {
-                            eprintln!("warning: running action failed: {}", message);
-                        }
-                    },
-                    Err(message) => {
-                        eprintln!("warning: checking action failed: {}", message);
-                    },
-                    _ => { }
+            .for_each(|action| match action.check() {
+                Ok(true) if check_deco() => {
+                    if let Err(message) = action.trigger() {
+                        eprintln!("warning: running action failed: {}", message);
+                    }
                 }
+                Err(message) => {
+                    eprintln!("warning: checking action failed: {}", message);
+                }
+                _ => {}
             });
     }
 }
