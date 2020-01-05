@@ -8,19 +8,30 @@ use std::time::{Duration, Instant};
 
 use winapi::um::winuser::{VK_F1, VK_RETURN};
 
-const LIFE_X: f64 = 0.06;
-const MANA_X: f64 = 0.94;
+// Measured in a 1920x1080 screen, life and mana fit in a 205px box.
+// The bottom right corners are (16, 2) for life and (1704, 2) for mana.
+// There is some decoration near the bottom in both (20px and 15px).
+// It doesn't seem to consider the area, only the height to indicate values.
+//
+// These values start at bottom-left, but we need origin to be in top-left
+// which is why we do `1.0 - (...)` for the Y coordinates.
+const LIFE_CX: f64 = (16.0 + 100.0) / 1920.0;
+const LIFE_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
+//const LIFE_RX: f64 = 100.0 / 1920.0;
+const LIFE_RY: f64 = 100.0 / 1080.0;
 
-const LIFE_Y1: f64 = 0.813;
-const LIFE_Y0: f64 = 0.974;
-const MANA_Y1: f64 = 0.809;
-const MANA_Y0: f64 = 0.981;
+const MANA_CX: f64 = (1704.0 + 100.0) / 1920.0;
+const MANA_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
+//const MANA_RX: f64 = 100.0 / 1920.0;
+const MANA_RY: f64 = 100.0 / 1080.0;
 
-const DECO_X0: f64 = 0.004;
-const DECO_Y0: f64 = 0.880;
+// There are plenty of places where we can look for decorations,
+// but we just pick a few around the bottom-left side of the screen.
+const DECO_X0: f64 = 8.0 / 1920.0;
+const DECO_Y0: f64 = 1.0 - (130.0 / 1080.0);
 
-const DECO_X1: f64 = 0.036;
-const DECO_Y1: f64 = 0.960;
+const DECO_X1: f64 = 69.0 / 1920.0;
+const DECO_Y1: f64 = 1.0 - (44.0 / 1080.0);
 
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
@@ -69,15 +80,15 @@ impl ScreenPoint {
 
     fn new_life(percent: f64, width: usize, height: usize) -> Option<Self> {
         Self::new(
-            (width as f64 * LIFE_X) as usize,
-            (height as f64 * (LIFE_Y0 + (LIFE_Y1 - LIFE_Y0) * percent)) as usize,
+            (width as f64 * LIFE_CX) as usize,
+            (height as f64 * (LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent))) as usize,
         )
     }
 
     fn new_mana(percent: f64, width: usize, height: usize) -> Option<Self> {
         Self::new(
-            (width as f64 * MANA_X) as usize,
-            (height as f64 * (MANA_Y0 + (MANA_Y1 - MANA_Y0) * percent)) as usize,
+            (width as f64 * MANA_CX) as usize,
+            (height as f64 * (MANA_CY + MANA_RY * 2.0 * (0.5 - percent))) as usize,
         )
     }
 
