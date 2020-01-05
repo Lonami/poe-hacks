@@ -17,7 +17,7 @@ use winapi::um::winuser::{VK_F1, VK_RETURN};
 // which is why we do `1.0 - (...)` for the Y coordinates.
 const LIFE_CX: f64 = (16.0 + 100.0) / 1920.0;
 const LIFE_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
-//const LIFE_RX: f64 = 100.0 / 1920.0;
+const LIFE_RX: f64 = 100.0 / 1920.0;
 const LIFE_RY: f64 = 100.0 / 1080.0;
 
 const MANA_CX: f64 = (1704.0 + 100.0) / 1920.0;
@@ -82,6 +82,19 @@ impl ScreenPoint {
         Self::new(
             (width as f64 * LIFE_CX) as usize,
             (height as f64 * (LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent))) as usize,
+        )
+    }
+
+    fn new_es(percent: f64, width: usize, height: usize) -> Option<Self> {
+        // x²/a² + y²/b² = 1
+        // x = √(a² * (1 - y²/b²))
+        let a = LIFE_RX;
+        let b = LIFE_RY;
+        let y = b * 2.0 * (0.5 - percent);
+        let x = f64::sqrt(a.powi(2) * (1.0 - y.powi(2) / b.powi(2)));
+        Self::new(
+            (width as f64 * (LIFE_CX + x)) as usize,
+            (height as f64 * (LIFE_CY + y)) as usize,
         )
     }
 
@@ -207,6 +220,7 @@ impl Action {
 
             WaitPreKind,
             WaitLifeValue,
+            WaitEsValue,
             WaitManaValue,
             WaitKeyValue,
 
@@ -230,6 +244,7 @@ impl Action {
 
                 WaitPreKind => match word {
                     "life" => WaitLifeValue,
+                    "es" => WaitEsValue,
                     "mana" => WaitManaValue,
                     "key" => WaitKeyValue,
                     _ => return Err(format!("found unknown condition '{}'", word)),
@@ -246,6 +261,18 @@ impl Action {
                     });
                     WaitKeyword
                 }
+                WaitEsValue => {
+                    let percent = parse_percentage(word)?;
+                    pre = Some(PreCondition::ScreenChange {
+                        point: match ScreenPoint::new_es(percent, width, height) {
+                            Some(value) => value,
+                            None => {
+                                return Err(format!("could not read es pixel at {:.2}", percent))
+                            }
+                        },
+                    });
+                    WaitKeyword
+                },
                 WaitManaValue => {
                     let percent = parse_percentage(word)?;
                     pre = Some(PreCondition::ScreenChange {
