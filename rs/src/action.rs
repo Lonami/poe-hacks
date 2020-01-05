@@ -6,7 +6,7 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use winapi::um::winuser::VK_RETURN;
+use winapi::um::winuser::{VK_F1, VK_RETURN};
 
 const LIFE_X: f64 = 0.06;
 const MANA_X: f64 = 0.94;
@@ -122,7 +122,14 @@ fn parse_vk(word: &str) -> Result<u16, &'static str> {
     if word.starts_with("0x") {
         u16::from_str_radix(&word[2..], 16).map_err(|_| "got invalid hex virtual key code")
     } else if word.len() != 1 {
-        Err("cannot map more than one character to a virtual key code")
+        if word.starts_with("f") {
+            match word[1..].parse::<u8>() {
+                Ok(n) => Ok(((VK_F1 - 1) + n as i32) as u16),
+                Err(_) => Err("invalid integer value for fn key"),
+            }
+        } else {
+            Err("cannot map more than one character to a virtual key code unless it's a fn key")
+        }
     } else {
         Ok(input::keyboard::get_vk(word.as_bytes()[0]))
     }
