@@ -37,6 +37,7 @@ enum PreCondition {
     KeyPress { vk: u16 },
 }
 
+#[derive(PartialEq)]
 enum PostCondition {
     PressKey { vk: u16 },
     Disconnect,
@@ -316,8 +317,15 @@ impl Action {
         }))
     }
 
-    fn check(&self) -> Result<bool, &'static str> {
-        Ok(self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay)
+    fn check(&self, check_deco: &dyn Fn() -> bool) -> Result<bool, &'static str> {
+        Ok(self.pre.is_valid()?
+            && self.last_trigger.elapsed() > self.delay
+            && ((self.post == PostCondition::Disconnect
+                && match self.pre {
+                    PreCondition::KeyPress { .. } => true,
+                    _ => false,
+                })
+                | check_deco()))
     }
 
     fn trigger(&mut self) -> Result<(), &'static str> {
@@ -385,13 +393,10 @@ impl ActionSet {
             })
         };
 
-        if !check_deco() {
-            return;
-        }
         self.actions
             .iter_mut()
-            .for_each(|action| match action.check() {
-                Ok(true) if check_deco() => {
+            .for_each(|action| match action.check(&check_deco) {
+                Ok(true) => {
                     if let Err(message) = action.trigger() {
                         eprintln!("warning: running action failed: {}", message);
                     }
