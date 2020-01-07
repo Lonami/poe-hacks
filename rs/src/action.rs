@@ -292,7 +292,7 @@ impl Action {
                         },
                     });
                     WaitKeyword
-                },
+                }
                 WaitManaValue => {
                     let percent = parse_percentage(word)?;
                     pre = Some(PreCondition::ScreenChange {
@@ -375,15 +375,16 @@ impl Action {
         }))
     }
 
-    fn check(&self, check_deco: &dyn Fn() -> bool) -> Result<bool, &'static str> {
-        Ok(self.pre.is_valid()?
-            && self.last_trigger.elapsed() > self.delay
-            && ((self.post == PostCondition::Disconnect
-                && match self.pre {
-                    PreCondition::KeyPress { .. } => true,
-                    _ => false,
-                })
-                | check_deco()))
+    fn special(&self) -> bool {
+        self.post == PostCondition::Disconnect
+            && match self.pre {
+                PreCondition::KeyPress { .. } => true,
+                _ => false,
+            }
+    }
+
+    fn check(&self) -> Result<bool, &'static str> {
+        Ok(self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay)
     }
 
     fn trigger(&mut self) -> Result<(), &'static str> {
@@ -439,30 +440,30 @@ impl ActionSet {
     }
 
     pub fn check_all(&mut self) {
-        let decorations = self.decorations.clone();
-        let check_deco = || {
-            decorations.iter().all(|decoration| {
-                if let Some(changed) = decoration.changed() {
-                    !changed
-                } else {
-                    eprintln!("warning: failed to check decoration pixel");
-                    false
-                }
-            })
-        };
+        // Decoration has to be checked *after* an action is valid,
+        // because else some actions would trigger on loading screens.
+        let actions_to_trigger = self.actions.iter_mut().filter(|a| match a.check() {
+            Ok(x) => x,
+            Err(message) => {
+                eprintln!("warning: checking action failed: {}", message);
+                false
+            }
+        });
+        let decoration_present = self.decorations.iter().all(|decoration| {
+            if let Some(changed) = decoration.changed() {
+                !changed
+            } else {
+                eprintln!("warning: failed to check decoration pixel");
+                false
+            }
+        });
 
-        self.actions
-            .iter_mut()
-            .for_each(|action| match action.check(&check_deco) {
-                Ok(true) => {
-                    if let Err(message) = action.trigger() {
-                        eprintln!("warning: running action failed: {}", message);
-                    }
+        actions_to_trigger
+            .filter(|action| decoration_present || action.special())
+            .for_each(|action| {
+                if let Err(message) = action.trigger() {
+                    eprintln!("warning: running action failed: {}", message);
                 }
-                Err(message) => {
-                    eprintln!("warning: checking action failed: {}", message);
-                }
-                _ => {}
             });
     }
 }
