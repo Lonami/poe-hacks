@@ -64,6 +64,7 @@ struct Action {
     post: PostCondition,
     last_trigger: Instant,
     delay: Duration,
+    display: String,
 }
 
 pub struct ActionSet {
@@ -252,7 +253,8 @@ impl Action {
         };
 
         let mut state = State::WaitKeyword;
-        for word in line.to_lowercase().split_whitespace() {
+        let line = line.to_lowercase();
+        for word in line.split_whitespace() {
             use State::*;
             state = match &state {
                 WaitKeyword => match word {
@@ -372,6 +374,7 @@ impl Action {
             post,
             delay,
             last_trigger: Instant::now() - delay,
+            display: line
         }))
     }
 
@@ -462,7 +465,9 @@ impl ActionSet {
             .filter(|action| decoration_present || action.special())
             .for_each(|action| {
                 if let Err(message) = action.trigger() {
-                    eprintln!("warning: running action failed: {}", message);
+                    eprintln!("warning: run failed: {}: {}", action.display, message);
+                } else {
+                    eprintln!("note: ran successfully: {}", action.display);
                 }
             });
     }
@@ -472,10 +477,14 @@ impl fmt::Display for ActionSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} actions for a {}x{} screen:\n",
+            "{} actions for a {}x{} screen:",
             self.actions.len(),
             self.width,
             self.height
-        )
+        )?;
+        for action in self.actions.iter() {
+            write!(f, "\n- {}", action.display)?;
+        }
+        Ok(())
     }
 }
