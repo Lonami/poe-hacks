@@ -374,7 +374,7 @@ impl Action {
             post,
             delay,
             last_trigger: Instant::now() - delay,
-            display: line
+            display: line,
         }))
     }
 

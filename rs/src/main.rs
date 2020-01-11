@@ -1,4 +1,5 @@
 mod action;
+mod https;
 
 use crate::action::ActionSet;
 use rshacks::input;
