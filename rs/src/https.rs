@@ -21,8 +21,7 @@ fn quote_plus(string: &str) -> String {
         'A'..='Z' => result.push(c),
         'a'..='z' => result.push(c),
         _ => {
-            c.encode_utf8(&mut buffer);
-            buffer.iter().for_each(|b| {
+            c.encode_utf8(&mut buffer).as_bytes().iter().for_each(|b| {
                 result.push_str(&format!("%{:x}", b));
             });
         }
@@ -195,7 +194,7 @@ fn parse_currency(string: &str) -> Option<f64> {
                     "chisel" => amount / 8.0,
                     "chance" => amount / 8.0,
                     "blessed" => amount / 16.0,
-                    _ => return None
+                    _ => return None,
                 });
             }
         }
@@ -207,13 +206,16 @@ pub fn find_prices(data: &[(&str, &str)]) -> Result<Vec<f64>, String> {
     let html = query_poe_trade(&data)?;
     let attr = "data-buyout=\"";
 
-    Ok(html.match_indices(attr).flat_map(|(pos, _)| {
-        let pos = pos + attr.len();
-        match html[pos..].find('"') {
-            Some(quote_end) => parse_currency(&html[pos..pos + quote_end]),
-            None => None
-        }
-    }).collect())
+    Ok(html
+        .match_indices(attr)
+        .flat_map(|(pos, _)| {
+            let pos = pos + attr.len();
+            match html[pos..].find('"') {
+                Some(quote_end) => parse_currency(&html[pos..pos + quote_end]),
+                None => None,
+            }
+        })
+        .collect())
 }
 
 pub fn find_unique_prices(unique: &str) -> Result<Vec<f64>, String> {
