@@ -1,3 +1,5 @@
+use crate::https;
+
 use rshacks::{input, proc};
 use std::fmt;
 use std::fs::File;
@@ -57,6 +59,7 @@ enum PostCondition {
     PressKey { vk: u16 },
     Disconnect,
     Type { string: String },
+    TypePrice,
 }
 
 struct Action {
@@ -221,6 +224,40 @@ impl PostCondition {
                 input::keyboard::press(VK_RETURN as u16);
                 Ok(())
             }
+            Self::TypePrice => {
+                // Press Ctrl+C
+                sleep(Duration::from_millis(200));
+                input::keyboard::ctrl_press(b'C' as u16);
+                sleep(Duration::from_millis(200));
+
+                // Extract name from clipboard
+                let clipboard = input::clipboard::get()?;
+                let name = {
+                    let mut it = clipboard.split("\r\n");
+                    it.next();
+                    match it.next() {
+                        Some(x) => x,
+                        None => return Err("copied data does not contain item name"),
+                    }
+                };
+
+                input::keyboard::press(VK_RETURN as u16);
+                input::keyboard::type_string(&format!("{} is worth", name));
+
+                // Search for this item in poe.trade
+                let prices =
+                    https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?;
+
+                // Average the first few results
+                let first_results = &prices[..prices.len().min(5)];
+                let avg_price = first_results.iter().sum::<f64>() / first_results.len() as f64;
+
+                // Type the price in chat
+                input::keyboard::type_string(&format!(" {:.1}c", avg_price));
+                input::keyboard::press(VK_RETURN as u16);
+
+                Ok(())
+            }
         }
     }
 }
@@ -325,6 +362,10 @@ impl Action {
                             string: String::new(),
                         });
                         WaitPostRemaining
+                    }
+                    "price" => {
+                        post = Some(PostCondition::TypePrice);
+                        WaitKeyword
                     }
                     _ => return Err(format!("found unknown action '{}'", word)),
                 },
