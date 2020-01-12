@@ -508,6 +508,15 @@ def get_color(x, y):
 
     Returns colors as zbgr int
     """
+    # TODO this program breaks because:
+    # > After painting with a common DC, the ReleaseDC
+    # > function must be called to release the DC
+    # (https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc)
+    #
+    # And we're not calling it anywhere which eventually breaks.
+    # This is the same issue we found in the Rust rewrite but we
+    # worked around that. The fix is to use a global here and only
+    # fetch it once which should be more efficient regardless.
     return ctypes.windll.gdi32.GetPixel(ctypes.windll.user32.GetDC(0), x, y)
 
 
