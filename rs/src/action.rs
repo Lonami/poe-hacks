@@ -512,7 +512,7 @@ impl ActionSet {
         // an immutable reference (and `actions_to_trigger` has mutable)
         // which wouldn't work. However, the lambda seems to be fine.
         let decorations = &self.decorations;
-        let deco_check = || decorations.clone().iter().all(|decoration| {
+        let deco_check = || decorations.iter().all(|decoration| {
             if let Some(changed) = decoration.changed() {
                 !changed
             } else {
