@@ -427,13 +427,31 @@ impl Action {
             }
     }
 
-    fn check(&self) -> Result<bool, &'static str> {
+    fn try_check(&self) -> Result<bool, &'static str> {
         Ok(self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay)
     }
 
-    fn trigger(&mut self) -> Result<(), &'static str> {
+    fn check(&self) -> bool {
+        match self.try_check() {
+            Ok(x) => x,
+            Err(message) => {
+                eprintln!("warning: checking action failed: {}", message);
+                false
+            }
+        }
+    }
+
+    fn try_trigger(&mut self) -> Result<(), &'static str> {
         self.last_trigger = Instant::now();
         self.post.act()
+    }
+
+    fn trigger(&mut self) {
+        if let Err(message) = action.try_trigger() {
+            eprintln!("warning: run failed: {}: {}", self.display, message);
+        } else {
+            eprintln!("note: ran successfully: {}", self.display);
+        }
     }
 }
 
@@ -483,34 +501,41 @@ impl ActionSet {
         })
     }
 
-    pub fn check_all(&mut self) {
-        // Decoration has to be checked *after* an action is valid,
-        // because else some actions would trigger on loading screens.
-        let actions_to_trigger = self.actions.iter_mut().filter(|a| match a.check() {
-            Ok(x) => x,
-            Err(message) => {
-                eprintln!("warning: checking action failed: {}", message);
-                false
-            }
-        });
-        let decoration_present = self.decorations.iter().all(|decoration| {
+    fn check_decorations() -> bool {
+        self.decorations.iter().all(|decoration| {
             if let Some(changed) = decoration.changed() {
                 !changed
             } else {
                 eprintln!("warning: failed to check decoration pixel");
                 false
             }
-        });
+        })
+    }
 
-        actions_to_trigger
-            .filter(|action| decoration_present || action.special())
-            .for_each(|action| {
-                if let Err(message) = action.trigger() {
-                    eprintln!("warning: run failed: {}: {}", action.display, message);
-                } else {
-                    eprintln!("note: ran successfully: {}", action.display);
-                }
-            });
+    pub fn check_all(&mut self) {
+        // First try inconditional actions
+        self.actions
+            .iter_mut()
+            .filter(|a| a.special() && a.check())
+            .for_each(|a| a.trigger());
+
+        // Then, check decorations before determining other actions and
+        // also after. This is important because loading screens somehow
+        // trip us up if we skip either decoration check (before or after).
+        if check_decorations() {
+            // Note: the collect is important because we want to check the
+            //       decorations immediately, not lazily! Otherwise, both
+            //       decoration checks would happen *before* and none after.
+            let actions_to_trigger = self
+                .actions
+                .iter_mut()
+                .filter(|a| !a.special() && a.check())
+                .collect();
+
+            if check_decorations() {
+                actions_to_trigger.iter().for_each(|a| a.trigger());
+            }
+        }
     }
 }
 
