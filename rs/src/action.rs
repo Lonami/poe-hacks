@@ -447,7 +447,7 @@ impl Action {
     }
 
     fn trigger(&mut self) {
-        if let Err(message) = action.try_trigger() {
+        if let Err(message) = self.try_trigger() {
             eprintln!("warning: run failed: {}: {}", self.display, message);
         } else {
             eprintln!("note: ran successfully: {}", self.display);
@@ -501,17 +501,6 @@ impl ActionSet {
         })
     }
 
-    fn check_decorations() -> bool {
-        self.decorations.iter().all(|decoration| {
-            if let Some(changed) = decoration.changed() {
-                !changed
-            } else {
-                eprintln!("warning: failed to check decoration pixel");
-                false
-            }
-        })
-    }
-
     pub fn check_all(&mut self) {
         // First try inconditional actions
         self.actions
@@ -519,21 +508,34 @@ impl ActionSet {
             .filter(|a| a.special() && a.check())
             .for_each(|a| a.trigger());
 
+        // This decoration check can't be a `fn(&self)` because that takes
+        // an immutable reference (and `actions_to_trigger` has mutable)
+        // which wouldn't work. However, the lambda seems to be fine.
+        let decorations = &self.decorations;
+        let deco_check = || decorations.clone().iter().all(|decoration| {
+            if let Some(changed) = decoration.changed() {
+                !changed
+            } else {
+                eprintln!("warning: failed to check decoration pixel");
+                false
+            }
+        });
+
         // Then, check decorations before determining other actions and
         // also after. This is important because loading screens somehow
         // trip us up if we skip either decoration check (before or after).
-        if check_decorations() {
+        if deco_check() {
             // Note: the collect is important because we want to check the
             //       decorations immediately, not lazily! Otherwise, both
             //       decoration checks would happen *before* and none after.
-            let actions_to_trigger = self
+            let actions_to_trigger: Vec<&mut Action> = self
                 .actions
                 .iter_mut()
                 .filter(|a| !a.special() && a.check())
                 .collect();
 
-            if check_decorations() {
-                actions_to_trigger.iter().for_each(|a| a.trigger());
+            if deco_check() {
+                actions_to_trigger.into_iter().for_each(|a| a.trigger());
             }
         }
     }
