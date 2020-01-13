@@ -22,10 +22,17 @@ fn main() {
         sleep(DELAY);
     }
 
-    let mut actions = match ActionSet::from_file("poe.key") {
-        Ok(value) => value,
+    let mut args = std::env::args();
+    let _program = args.next();
+    let file = args.next().unwrap_or_else(|| "poe_key".into());
+
+    let mut actions = match ActionSet::from_file(&file) {
+        Ok(value) => {
+            eprintln!("loaded action set from '{}'", file);
+            value
+        },
         Err(message) => {
-            eprintln!("failed to load action set: {}", message);
+            eprintln!("failed to load action set from '{}': {}", file, message);
             return;
         }
     };
