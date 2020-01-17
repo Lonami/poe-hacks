@@ -30,7 +30,7 @@ fn main() {
         Ok(value) => {
             eprintln!("loaded action set from '{}'", file);
             value
-        },
+        }
         Err(message) => {
             eprintln!("failed to load action set from '{}': {}", file, message);
             return;
