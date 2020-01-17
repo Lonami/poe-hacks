@@ -9,6 +9,8 @@ use std::time::Duration;
 const DELAY: Duration = Duration::from_millis(10);
 
 fn main() {
+    input::screen::show_tooltip();
+    return;
     if input::screen::color(0, 0).is_err() {
         eprintln!("cannot get color from screen");
         return;

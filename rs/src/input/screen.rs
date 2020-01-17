@@ -6,16 +6,22 @@ use std::io::Error;
 use std::mem::MaybeUninit;
 
 use winapi::um::winuser::{
-    CreateWindowExA, DefWindowProcA, GetDesktopWindow, GetWindowRect, RegisterClassExA,
-    COLOR_WINDOW, CS_HREDRAW, CS_VREDRAW, WNDCLASSEXA, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    CreateWindowExA, DefWindowProcA, DispatchMessageA, GetClientRect, GetDesktopWindow,
+    GetMessageA, GetWindowRect, RegisterClassExA, SendMessageA, SetCursorPos, SetWindowPos,
+    TranslateMessage, COLOR_WINDOW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HWND_TOPMOST,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WNDCLASSEXA, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
+    WS_POPUP, WS_VISIBLE,
 };
 
 use winapi::shared::minwindef::{ATOM, DWORD};
-use winapi::shared::windef::{HBRUSH, HWND};
+use winapi::shared::windef::{HBRUSH, HWND, RECT};
+use winapi::um::commctrl::{
+    TOOLINFOA, TOOLTIPS_CLASS, TTF_SUBCLASS, TTM_ADDTOOLA, TTM_POPUP, TTS_ALWAYSTIP, TTS_NOPREFIX,
+};
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::libloaderapi::GetModuleHandleA;
 use winapi::um::wingdi::{GetPixel, CLR_INVALID};
-use winapi::um::winnt::LPCSTR;
+use winapi::um::winnt::{LPCSTR, LPSTR};
 
 /// Gets the primary screen's size as `(width, height)`.
 ///
@@ -97,24 +103,37 @@ pub fn register_window_class(class_name: &str) -> Result<ATOM, DWORD> {
 /// # References
 ///
 /// https://codesteps.com/2014/07/14/win32-programming-how-to-create-a-simple-gui-graphical-user-interface-based-application-part-1/
-pub fn create_window(class_name: &str) -> Result<HWND, DWORD> {
+pub fn create_window() -> Result<HWND, DWORD> {
     // TODO Maybe use the atom instead of the class name
     unsafe {
+        register_window_class(TOOLTIPS_CLASS).unwrap();
+        let parent = GetDesktopWindow();
+        let instance = std::ptr::null_mut();
         let window_handle = CreateWindowExA(
-            0, // https://docs.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles
-            class_name.as_ptr() as LPCSTR, // lpClassName
-            "A GUI window".as_ptr() as LPCSTR, // lpWindowName
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE, // dwStyle
-            100, // X
-            100, // Y
-            200, // nWidth
-            200, // nHeight
-            std::ptr::null_mut(), // hWndParent
+            WS_EX_TOPMOST,                     // dwExStyle
+            TOOLTIPS_CLASS.as_ptr() as LPCSTR, // lpClassName
+            std::ptr::null_mut(),              // lpWindowName
+            //WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, // dwStyle
+            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            CW_USEDEFAULT,        // X
+            CW_USEDEFAULT,        // Y
+            CW_USEDEFAULT,        // nWidth
+            CW_USEDEFAULT,        // nHeight
+            parent,               // hWndParent
             std::ptr::null_mut(), // hMenu
-            std::ptr::null_mut(), // hInstance
+            instance,             // hInstance
             std::ptr::null_mut(), // lpParam
         );
         if !window_handle.is_null() {
+            SetWindowPos(
+                window_handle,
+                HWND_TOPMOST,
+                0,
+                0,
+                1366,
+                768,
+                SWP_NOMOVE | SWP_NOSIZE, // | SWP_NOACTIVATE,
+            );
             Ok(window_handle)
         } else {
             Err(GetLastError())
@@ -123,71 +142,43 @@ pub fn create_window(class_name: &str) -> Result<HWND, DWORD> {
 }
 
 pub fn show_tooltip() {
-    // TODO https://stackoverflow.com/a/22729474
-    /*
-    #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+    unsafe {
+        let tooltip = create_window().unwrap();
 
-    hWndtoolTip = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT, hWndParent, 0, hInstance, 0);
-    SetWindowPos(hWndtoolTip, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        let parent = GetDesktopWindow();
+        let instance = std::ptr::null_mut();
+        let mut ti = TOOLINFOA {
+            cbSize: std::mem::size_of::<TOOLINFOA>() as u32,
+            uFlags: TTF_SUBCLASS,
+            hwnd: parent,
+            hinst: instance,
+            uId: tooltip as usize,
+            lpszText: "tool-tip".as_ptr() as LPSTR,
+            lParam: 0,
+            lpReserved: std::ptr::null_mut(),
+            rect: RECT {
+                left: 200,
+                top: 200,
+                right: 400,
+                bottom: 400,
+            },
+        };
+        //dbg!(GetClientRect(parent, &mut ti.rect));
+        dbg!(SendMessageA(
+            tooltip,
+            TTM_ADDTOOLA,
+            0,
+            &ti as *const TOOLINFOA as isize
+        ));
 
-    TOOLINFO ti = {};
-    ti.cbSize = sizeof(TOOLINFO);
-    ti.uFlags = TTF_SUBCLASS;
-    ti.hwnd   = hWndParent;
-    ti.hinst  = hInstance;
-    ti.uId    = (UINT)hWndtoolTip;
-    ti.lpszText = L"tool-tip";
-    GetClientRect(hWndParent, &ti.rect);
-    SendMessage(hWndtoolTip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        dbg!(SetCursorPos(300, 300));
+        dbg!(SendMessageA(tooltip, TTM_POPUP, 0, 0));
 
-    SetCursorPos(300, 300);
-    SendMessage(hWndtoolTip, TTM_POPUP, 0, 0);
-        */
-
-    // ..or https://stackoverflow.com/a/19668489
-    // https://docs.microsoft.com/en-us/windows/win32/controls/create-a-tooltip-for-a-control
-    /*
-    HWND CreateToolTip(int toolID, HWND hDlg, HINSTANCE hInst, PTSTR pszText)
-    {
-        if (!toolID || !hDlg || !pszText)
-        {
-            return NULL;
+        let mut msg = std::mem::zeroed();
+        while GetMessageA(&mut msg, tooltip, 0, 0) != -1 {
+            dbg!(msg.message);
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
         }
-
-        // Get the window of the tool.
-        HWND hwndTool = GetDlgItem(hDlg, toolID);
-        if (!hwndTool)
-        {
-            return NULL;
-        }
-
-        // Create the tooltip. g_hInst is the global instance handle.
-        HWND hwndTip = CreateWindowEx(NULL, TOOLTIPS_CLASS, NULL,
-                                  WS_POPUP |TTS_ALWAYSTIP | TTS_BALLOON,
-                                  CW_USEDEFAULT, CW_USEDEFAULT,
-                                  CW_USEDEFAULT, CW_USEDEFAULT,
-                                  hDlg, NULL,
-                                  hInst, NULL);
-
-       if (!hwndTip)
-       {
-           return NULL;
-       }
-
-        // Associate the tooltip with the tool.
-        TOOLINFO toolInfo = { 0 };
-        toolInfo.cbSize = sizeof(toolInfo);
-        toolInfo.hwnd = hDlg;
-        toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-        toolInfo.uId = (UINT_PTR)hwndTool;
-        toolInfo.lpszText = pszText;
-        if (!SendMessage(hwndTip, TTM_ADDTOOL, 0, (LPARAM)&toolInfo))
-        {
-            DestroyWindow(hwndTip);
-            return NULL;
-        }
-
-        return hwndTip;
     }
-        */
 }
