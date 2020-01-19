@@ -6,15 +6,17 @@ use std::io::Error;
 use std::mem::MaybeUninit;
 
 use winapi::um::winuser::{
-    CreateWindowExA, CreateWindowExW, DefWindowProcA, DefWindowProcW, DispatchMessageA,
-    GetClientRect, GetDesktopWindow, GetMessageA, GetWindowRect, RegisterClassExA,
-    RegisterClassExW, SendMessageA, SendMessageW, SetCursorPos, SetWindowPos, TranslateMessage,
-    COLOR_WINDOW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, WNDCLASSEXA, WNDCLASSEXW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    CreateWindowExA, CreateWindowExW, DefWindowProcA, DefWindowProcW, DestroyWindow,
+    DispatchMessageA, DrawTextA, GetClientRect, GetDesktopWindow, GetMessageA, GetWindowDC,
+    GetWindowRect, RegisterClassExA, RegisterClassExW, SendMessageA, SendMessageW, SetCursorPos,
+    SetWindowPos, TranslateMessage, COLOR_WINDOW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
+    DT_CALCRECT, DT_NOCLIP, DT_SINGLELINE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, WNDCLASSEXA, WNDCLASSEXW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WS_VISIBLE,
 };
 
 use winapi::shared::minwindef::{ATOM, DWORD, MAKELONG};
-use winapi::shared::windef::{HBRUSH, HWND, RECT};
+use winapi::shared::windef::{HBRUSH, HDC, HWND, RECT};
 use winapi::um::commctrl::{
     TOOLINFOA, TOOLINFOW, TOOLTIPS_CLASS, TTF_ABSOLUTE, TTF_IDISHWND, TTF_SUBCLASS, TTM_ADDTOOLA,
     TTM_ADDTOOLW, TTM_POPUP, TTM_SETMAXTIPWIDTH, TTM_TRACKACTIVATE, TTM_TRACKPOSITION,
@@ -22,8 +24,39 @@ use winapi::um::commctrl::{
 };
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::libloaderapi::{GetModuleHandleA, GetModuleHandleW};
-use winapi::um::wingdi::{GetPixel, CLR_INVALID};
+use winapi::um::wingdi::{
+    DeleteDC, GetPixel, GetTextMetricsA, SetBkMode, SetTextColor, CLR_INVALID, TEXTMETRICA,
+    TRANSPARENT,
+};
 use winapi::um::winnt::{LPCSTR, LPCWSTR, LPSTR};
+
+// Structures used for the automatic `Drop` cleanup
+struct Window(HWND);
+struct WindowDC(HDC);
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        unsafe {
+            if DestroyWindow(self.0) == 0 {
+                eprintln!(
+                    "failed to destroy window {:?}: error code {}",
+                    self.0,
+                    GetLastError()
+                );
+            }
+        }
+    }
+}
+
+impl Drop for WindowDC {
+    fn drop(&mut self) {
+        unsafe {
+            if DeleteDC(self.0) == 0 {
+                eprintln!("failed to destroy dc {:?}", self.0);
+            }
+        }
+    }
+}
 
 /// Gets the primary screen's size as `(width, height)`.
 ///
@@ -73,24 +106,23 @@ pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), &'static str> {
 ///
 /// # References
 ///
-/// https://codesteps.com/2014/07/18/win32-programming-how-to-create-a-simple-gui-graphical-user-interface-based-application-part-2/
-/// https://codesteps.com/2014/07/22/win32-programming-how-to-create-a-simple-gui-graphical-user-interface-based-application-part-3/
 /// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassexa
 /// https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes--1300-1699-
-pub fn register_window_class(class_name: &str) -> Result<ATOM, DWORD> {
+pub fn register_window_class() -> Result<ATOM, DWORD> {
     unsafe {
+        // TODO: Why can `hInstance` be both null and `GetModuleHandleA(std::ptr::null())`?
         let atom = RegisterClassExA(&WNDCLASSEXA {
             cbSize: std::mem::size_of::<WNDCLASSEXA>() as u32,
-            style: CS_HREDRAW | CS_VREDRAW,
+            style: 0,
             lpfnWndProc: Some(DefWindowProcA),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: GetModuleHandleA(std::ptr::null_mut()),
+            hInstance: std::ptr::null_mut(),
             hIcon: std::ptr::null_mut(),
             hCursor: std::ptr::null_mut(),
             hbrBackground: COLOR_WINDOW as HBRUSH,
             lpszMenuName: std::ptr::null_mut(),
-            lpszClassName: class_name.as_ptr() as LPCSTR,
+            lpszClassName: TOOLTIPS_CLASS.as_ptr() as LPCSTR,
             hIconSm: std::ptr::null_mut(),
         });
 
@@ -102,152 +134,107 @@ pub fn register_window_class(class_name: &str) -> Result<ATOM, DWORD> {
     }
 }
 
-/// # References
-///
-/// https://codesteps.com/2014/07/14/win32-programming-how-to-create-a-simple-gui-graphical-user-interface-based-application-part-1/
-pub fn create_window() -> Result<HWND, DWORD> {
+fn create_window() -> Result<Window, DWORD> {
     // TODO Maybe use the atom instead of the class name
     unsafe {
-        register_window_class(TOOLTIPS_CLASS).unwrap();
-        let parent = GetDesktopWindow();
-        let instance = std::ptr::null_mut();
-        let window_handle = CreateWindowExA(
-            WS_EX_TOPMOST,                     // dwExStyle
-            TOOLTIPS_CLASS.as_ptr() as LPCSTR, // lpClassName
-            std::ptr::null_mut(),              // lpWindowName
-            //WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, // dwStyle
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            CW_USEDEFAULT,        // X
-            CW_USEDEFAULT,        // Y
-            CW_USEDEFAULT,        // nWidth
-            CW_USEDEFAULT,        // nHeight
-            parent,               // hWndParent
-            std::ptr::null_mut(), // hMenu
-            instance,             // hInstance
-            std::ptr::null_mut(), // lpParam
-        );
-        if !window_handle.is_null() {
-            SetWindowPos(
-                window_handle,
-                HWND_TOPMOST,
-                0,
-                0,
-                1366,
-                768,
-                SWP_NOMOVE | SWP_NOSIZE, // | SWP_NOACTIVATE,
-            );
-            Ok(window_handle)
-        } else {
-            Err(GetLastError())
-        }
-    }
-}
+        // TODO: Why can the parent be both null and `GetDesktopWindow()`?
+        let parent = std::ptr::null_mut();
 
-pub fn show_tooltip() {
-    unsafe {
-        // https://stackoverflow.com/q/5896030
-        let parent = GetDesktopWindow();
-        let appHandle = GetModuleHandleW(std::ptr::null());
+        // TODO: Why can the app handle be both null and `GetModuleHandleA(std::ptr::null())`?
+        let app_handle = std::ptr::null_mut();
 
-        let atom = RegisterClassExW(&WNDCLASSEXW {
-            cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
-            style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(DefWindowProcW),
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: GetModuleHandleW(std::ptr::null_mut()),
-            hIcon: std::ptr::null_mut(),
-            hCursor: std::ptr::null_mut(),
-            hbrBackground: COLOR_WINDOW as HBRUSH,
-            lpszMenuName: std::ptr::null_mut(),
-            lpszClassName: TOOLTIPS_CLASS.as_ptr() as LPCWSTR,
-            hIconSm: std::ptr::null_mut(),
-        });
-
-        let toolTipWnd = CreateWindowExW(
+        let handle = CreateWindowExA(
             WS_EX_TOPMOST,
-            TOOLTIPS_CLASS.as_ptr() as LPCWSTR,
+            TOOLTIPS_CLASS.as_ptr() as LPCSTR,
             std::ptr::null_mut(),
-            WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+            WS_POPUP | WS_VISIBLE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             parent,
             std::ptr::null_mut(),
-            appHandle,
+            app_handle,
             std::ptr::null_mut(),
         );
-        dbg!(toolTipWnd);
 
-        let ti = TOOLINFOW {
-            cbSize: std::mem::size_of::<TOOLINFOW>() as u32,
-            uFlags: TTF_ABSOLUTE | TTF_IDISHWND, /* | TTF_TRACK */
-            // Don't specify TTF_TRACK here. Otherwise the tooltip won't show up.
-            hwnd: toolTipWnd,
-            hinst: std::ptr::null_mut(),
-            uId: toolTipWnd as usize,
-            lpszText: "\0\0".as_ptr() as LPSTR,
-            lParam: 0,
-            lpReserved: std::ptr::null_mut(),
-            rect: RECT {
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-            },
-        };
-
-        SendMessageW(
-            toolTipWnd,
-            TTM_ADDTOOLW,
-            0,
-            &ti as *const TOOLINFOW as isize,
-        );
-        SendMessageW(toolTipWnd, TTM_SETMAXTIPWIDTH, 0, 350);
-
-        let ti = TOOLINFOW {
-            cbSize: std::mem::size_of::<TOOLINFOW>() as u32,
-            hwnd: toolTipWnd,
-            uId: toolTipWnd as usize,
-            lpszText: "Sample Tip Text\0\0".as_ptr() as LPSTR,
-            hinst: std::ptr::null_mut(),
-            lParam: 0,
-            lpReserved: std::ptr::null_mut(),
-            rect: RECT {
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-            },
-            uFlags: 0,
-        };
-
-        SendMessageW(
-            toolTipWnd,
-            TTM_UPDATETIPTEXTW,
-            0,
-            &ti as *const TOOLINFOW as isize,
-        ); // This will update the tooltip content.
-        SendMessageW(
-            toolTipWnd,
-            TTM_TRACKACTIVATE,
-            1,
-            &ti as *const TOOLINFOW as isize,
-        );
-        SendMessageW(
-            toolTipWnd,
-            TTM_TRACKPOSITION,
-            0,
-            MAKELONG(300, 300) as isize,
-        ); // Update the position of your tooltip. Screen coordinate.
-        SendMessageW(toolTipWnd, TTM_POPUP, 0, 0); // TTM_POPUP not working.. Don't know why.
-
-        let mut msg = std::mem::zeroed();
-        while GetMessageA(&mut msg, toolTipWnd, 0, 0) != -1 {
-            dbg!(msg.message);
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
+        if !handle.is_null() {
+            Ok(Window(handle))
+        } else {
+            Err(GetLastError())
         }
+    }
+}
+
+fn get_window_dc(window: &Window) -> Result<WindowDC, DWORD> {
+    unsafe {
+        let window_dc = GetWindowDC(window.0);
+        if window_dc.is_null() {
+            Err(1)
+        } else {
+            Ok(WindowDC(window_dc))
+        }
+    }
+}
+
+pub fn show_tooltip(text: &str) -> Result<(), DWORD> {
+    unsafe {
+        let window = create_window()?;
+        let window_dc = get_window_dc(&window)?;
+
+        // Calculate required width
+        let mut rect: RECT = std::mem::zeroed();
+        if DrawTextA(
+            window_dc.0,
+            text.as_ptr() as LPCSTR,
+            text.len() as i32,
+            &mut rect,
+            DT_CALCRECT,
+        ) == 0
+        {
+            return Err(2);
+        }
+
+        // Update position to be below mouse and of the right size
+        let mouse = crate::input::mouse::get().unwrap();
+        if SetWindowPos(
+            window.0,
+            std::ptr::null_mut(),
+            mouse.0 as i32,
+            mouse.1 as i32 + 20,
+            rect.right,
+            rect.bottom,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        ) == 0
+        {
+            return Err(GetLastError());
+        }
+
+        // Prepare fill and background color
+        if SetTextColor(window_dc.0, 0x00000000) == CLR_INVALID {
+            return Err(3);
+        };
+        if SetBkMode(window_dc.0, TRANSPARENT as i32) == 0 {
+            return Err(4);
+        };
+
+        // Draw the text
+        if DrawTextA(
+            window_dc.0,
+            text.as_ptr() as LPCSTR,
+            text.len() as i32,
+            &mut rect,
+            DT_SINGLELINE | DT_NOCLIP,
+        ) == 0
+        {
+            return Err(5);
+        };
+
+        // Wait until the mouse is moved
+        while mouse == crate::input::mouse::get().unwrap() {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        Ok(())
     }
 }

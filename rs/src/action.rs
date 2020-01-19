@@ -259,9 +259,6 @@ impl PostCondition {
                     }
                 };
 
-                input::keyboard::press(VK_RETURN as u16);
-                input::keyboard::type_string(&format!("{} is worth", name));
-
                 // Search for this item in poe.trade
                 let prices =
                     https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?;
@@ -270,9 +267,8 @@ impl PostCondition {
                 let first_results = &prices[..prices.len().min(5)];
                 let avg_price = first_results.iter().sum::<f64>() / first_results.len() as f64;
 
-                // Type the price in chat
-                input::keyboard::type_string(&format!(" {:.1}c", avg_price));
-                input::keyboard::press(VK_RETURN as u16);
+                // Show a tooltip
+                input::screen::show_tooltip(&format!("{} is worth {:.1}c", name, avg_price));
 
                 Ok(())
             }

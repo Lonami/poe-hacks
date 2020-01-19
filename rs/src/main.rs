@@ -13,6 +13,10 @@ fn main() {
         eprintln!("cannot get color from screen");
         return;
     }
+    if input::screen::register_window_class().is_err() {
+        eprintln!("failed to register window class for tooltips");
+        return;
+    }
 
     eprintln!("waiting for right click...");
     while !input::keyboard::is_down(0x02) {
