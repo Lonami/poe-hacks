@@ -91,7 +91,7 @@ impl ScreenPoint {
     }
 
     fn new_life(percent: f64, width: usize, height: usize) -> Option<Self> {
-        let y = (LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent));
+        let y = LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent);
         if y > LIFE_Y_UNSAFE {
             eprintln!(
                 "\x07warning: the life percentage {}% is too low and may not work",
@@ -118,7 +118,7 @@ impl ScreenPoint {
     }
 
     fn new_mana(percent: f64, width: usize, height: usize) -> Option<Self> {
-        let y = (MANA_CY + MANA_RY * 2.0 * (0.5 - percent));
+        let y = MANA_CY + MANA_RY * 2.0 * (0.5 - percent);
         if y > MANA_Y_UNSAFE {
             eprintln!(
                 "\x07warning: the mana percentage {}% is too low and may not work",
@@ -260,15 +260,31 @@ impl PostCondition {
                 };
 
                 // Search for this item in poe.trade
-                let prices =
-                    https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?;
+                let prices = {
+                    let _tooltip =
+                        input::screen::create_tooltip(&format!("Checking price for {}...", name))
+                            .map_err(|_| "failed to show loading tooltip")?;
+
+                    https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?
+                };
 
                 // Average the first few results
                 let first_results = &prices[..prices.len().min(5)];
                 let avg_price = first_results.iter().sum::<f64>() / first_results.len() as f64;
 
-                // Show a tooltip
-                input::screen::show_tooltip(&format!("{} is worth {:.1}c", name, avg_price));
+                // Show a tooltip until the mouse is moved
+                {
+                    let _tooltip = input::screen::create_tooltip(&format!(
+                        "{} is worth {:.1}c",
+                        name, avg_price
+                    ))
+                    .map_err(|_| "failed to show price tooltip")?;
+
+                    let mouse = input::mouse::get().map_err(|_| "failed to detect mouse")?;
+                    while mouse == input::mouse::get().map_err(|_| "failed to detect mouse")? {
+                        sleep(Duration::from_millis(10));
+                    }
+                }
 
                 Ok(())
             }

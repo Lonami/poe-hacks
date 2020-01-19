@@ -6,33 +6,27 @@ use std::io::Error;
 use std::mem::MaybeUninit;
 
 use winapi::um::winuser::{
-    CreateWindowExA, CreateWindowExW, DefWindowProcA, DefWindowProcW, DestroyWindow,
-    DispatchMessageA, DrawTextA, GetClientRect, GetDesktopWindow, GetMessageA, GetWindowDC,
-    GetWindowRect, RegisterClassExA, RegisterClassExW, SendMessageA, SendMessageW, SetCursorPos,
-    SetWindowPos, TranslateMessage, COLOR_WINDOW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
-    DT_CALCRECT, DT_NOCLIP, DT_SINGLELINE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, WNDCLASSEXA, WNDCLASSEXW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    CreateWindowExA, DefWindowProcA, DestroyWindow, DrawTextA, GetDesktopWindow, GetWindowDC,
+    GetWindowRect, RegisterClassExA, SetWindowPos, COLOR_WINDOW, CW_USEDEFAULT, DT_CALCRECT,
+    DT_NOCLIP, DT_SINGLELINE, SWP_NOACTIVATE, SWP_NOZORDER, WNDCLASSEXA, WS_EX_TOPMOST, WS_POPUP,
     WS_VISIBLE,
 };
 
-use winapi::shared::minwindef::{ATOM, DWORD, MAKELONG};
+use winapi::shared::minwindef::{ATOM, DWORD};
 use winapi::shared::windef::{HBRUSH, HDC, HWND, RECT};
-use winapi::um::commctrl::{
-    TOOLINFOA, TOOLINFOW, TOOLTIPS_CLASS, TTF_ABSOLUTE, TTF_IDISHWND, TTF_SUBCLASS, TTM_ADDTOOLA,
-    TTM_ADDTOOLW, TTM_POPUP, TTM_SETMAXTIPWIDTH, TTM_TRACKACTIVATE, TTM_TRACKPOSITION,
-    TTM_UPDATETIPTEXTW, TTS_ALWAYSTIP, TTS_NOPREFIX,
-};
+use winapi::um::commctrl::TOOLTIPS_CLASS;
 use winapi::um::errhandlingapi::GetLastError;
-use winapi::um::libloaderapi::{GetModuleHandleA, GetModuleHandleW};
-use winapi::um::wingdi::{
-    DeleteDC, GetPixel, GetTextMetricsA, SetBkMode, SetTextColor, CLR_INVALID, TEXTMETRICA,
-    TRANSPARENT,
-};
-use winapi::um::winnt::{LPCSTR, LPCWSTR, LPSTR};
+
+use winapi::um::wingdi::{DeleteDC, GetPixel, SetBkMode, SetTextColor, CLR_INVALID, TRANSPARENT};
+use winapi::um::winnt::LPCSTR;
 
 // Structures used for the automatic `Drop` cleanup
 struct Window(HWND);
 struct WindowDC(HDC);
+
+pub struct Tooltip {
+    _window: Window,
+}
 
 impl Drop for Window {
     fn drop(&mut self) {
@@ -177,7 +171,7 @@ fn get_window_dc(window: &Window) -> Result<WindowDC, DWORD> {
     }
 }
 
-pub fn show_tooltip(text: &str) -> Result<(), DWORD> {
+pub fn create_tooltip(text: &str) -> Result<Tooltip, DWORD> {
     unsafe {
         let window = create_window()?;
         let window_dc = get_window_dc(&window)?;
@@ -196,7 +190,7 @@ pub fn show_tooltip(text: &str) -> Result<(), DWORD> {
         }
 
         // Update position to be below mouse and of the right size
-        let mouse = crate::input::mouse::get().unwrap();
+        let mouse = crate::input::mouse::get().map_err(|_| GetLastError())?;
         if SetWindowPos(
             window.0,
             std::ptr::null_mut(),
@@ -230,11 +224,6 @@ pub fn show_tooltip(text: &str) -> Result<(), DWORD> {
             return Err(5);
         };
 
-        // Wait until the mouse is moved
-        while mouse == crate::input::mouse::get().unwrap() {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-
-        Ok(())
+        Ok(Tooltip { _window: window })
     }
 }
