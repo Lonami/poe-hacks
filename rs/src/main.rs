@@ -9,8 +9,6 @@ use std::time::Duration;
 const DELAY: Duration = Duration::from_millis(10);
 
 fn main() {
-    input::screen::show_tooltip();
-    return;
     if input::screen::color(0, 0).is_err() {
         eprintln!("cannot get color from screen");
         return;
@@ -26,7 +24,7 @@ fn main() {
 
     let mut args = std::env::args();
     let _program = args.next();
-    let file = args.next().unwrap_or_else(|| "poe_key".into());
+    let file = args.next().unwrap_or_else(|| "poe.key".into());
 
     let mut actions = match ActionSet::from_file(&file) {
         Ok(value) => {

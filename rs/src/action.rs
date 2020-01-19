@@ -17,15 +17,19 @@ use winapi::um::winuser::{VK_F1, VK_RETURN};
 //
 // These values start at bottom-left, but we need origin to be in top-left
 // which is why we do `1.0 - (...)` for the Y coordinates.
+//
+// The unsafe zone contains decoration so points below it may not work.
 const LIFE_CX: f64 = (16.0 + 100.0) / 1920.0;
 const LIFE_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
 const LIFE_RX: f64 = 100.0 / 1920.0;
 const LIFE_RY: f64 = 100.0 / 1080.0;
+const LIFE_Y_UNSAFE: f64 = 1.0 - (26.0 / 1080.0);
 
 const MANA_CX: f64 = (1704.0 + 100.0) / 1920.0;
 const MANA_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
 //const MANA_RX: f64 = 100.0 / 1920.0;
 const MANA_RY: f64 = 100.0 / 1080.0;
+const MANA_Y_UNSAFE: f64 = 1.0 - (16.0 / 1080.0);
 
 // There are plenty of places where we can look for decorations,
 // but we just pick a few around the bottom-left side of the screen.
@@ -87,9 +91,16 @@ impl ScreenPoint {
     }
 
     fn new_life(percent: f64, width: usize, height: usize) -> Option<Self> {
+        let y = (LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent));
+        if y > LIFE_Y_UNSAFE {
+            eprintln!(
+                "\x07warning: the life percentage {}% is too low and may not work",
+                (percent * 100.0) as usize
+            );
+        }
         Self::new(
             (width as f64 * LIFE_CX) as usize,
-            (height as f64 * (LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent))) as usize,
+            (height as f64 * y) as usize,
         )
     }
 
@@ -107,9 +118,16 @@ impl ScreenPoint {
     }
 
     fn new_mana(percent: f64, width: usize, height: usize) -> Option<Self> {
+        let y = (MANA_CY + MANA_RY * 2.0 * (0.5 - percent));
+        if y > MANA_Y_UNSAFE {
+            eprintln!(
+                "\x07warning: the mana percentage {}% is too low and may not work",
+                (percent * 100.0) as usize
+            );
+        }
         Self::new(
             (width as f64 * MANA_CX) as usize,
-            (height as f64 * (MANA_CY + MANA_RY * 2.0 * (0.5 - percent))) as usize,
+            (height as f64 * y) as usize,
         )
     }
 
