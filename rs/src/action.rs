@@ -8,7 +8,7 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use winapi::um::winuser::{VK_F1, VK_RETURN};
+use winapi::um::winuser::{VK_F1, VK_HOME, VK_RETURN, VK_RIGHT};
 
 // Measured in a 1920x1080 screen, life and mana fit in a 205px box.
 // The bottom right corners are (16, 2) for life and (1704, 2) for mana.
@@ -64,6 +64,7 @@ enum PostCondition {
     Disconnect,
     Type { string: String },
     TypePrice,
+    InviteLast,
 }
 
 struct Action {
@@ -288,6 +289,14 @@ impl PostCondition {
 
                 Ok(())
             }
+            Self::InviteLast => {
+                input::keyboard::ctrl_press(VK_RETURN as u16);
+                input::keyboard::press(VK_HOME as u16);
+                input::keyboard::shift_press(VK_RIGHT as u16);
+                input::keyboard::type_string("/invite ");
+                input::keyboard::ctrl_press(VK_RETURN as u16);
+                Ok(())
+            }
         }
     }
 }
@@ -395,6 +404,10 @@ impl Action {
                     }
                     "price" => {
                         post = Some(PostCondition::TypePrice);
+                        WaitKeyword
+                    }
+                    "invite" => {
+                        post = Some(PostCondition::InviteLast);
                         WaitKeyword
                     }
                     _ => return Err(format!("found unknown action '{}'", word)),

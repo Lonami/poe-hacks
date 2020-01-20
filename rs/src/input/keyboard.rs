@@ -135,6 +135,33 @@ pub fn ctrl_press(vk: u16) {
     }
 }
 
+/// Like `press` but it holds the Shift key while doing so.
+// TODO Better way to do this
+pub fn shift_press(vk: u16) {
+    unsafe {
+        let mut input = INPUT {
+            type_: INPUT_KEYBOARD,
+            u: MaybeUninit::<INPUT_u>::zeroed().assume_init(),
+        };
+
+        input.u.ki_mut().dwFlags = 0;
+
+        // Shift
+        let modifier = 1;
+
+        // Down
+        input.u.ki_mut().dwFlags = 0;
+        type_mod(&mut input, modifier);
+        input.u.ki_mut().wVk = vk;
+        SendInput(1, &mut input, size_of::<INPUT>() as i32);
+
+        // Up
+        input.u.ki_mut().dwFlags = KEYEVENTF_KEYUP;
+        SendInput(1, &mut input, size_of::<INPUT>() as i32);
+        type_mod(&mut input, modifier);
+    }
+}
+
 /// Is the specified Virtual Key Code down?
 ///
 /// # References
