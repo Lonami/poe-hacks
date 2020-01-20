@@ -93,6 +93,8 @@ pub fn kill_network(pid: u32) -> Result<usize, u32> {
         );
 
         // TODO consider using std::alloc::alloc
+        // See https://en.wikipedia.org/wiki/Flexible_array_member
+        // "It is common to allocate `sizeof(struct) + array_len*sizeof(array element)` bytes."
         let mut buffer = Vec::<u8>::with_capacity(size as usize);
 
         let res = GetExtendedTcpTable(
