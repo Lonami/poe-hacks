@@ -191,11 +191,18 @@ pub fn create_tooltip(text: &str) -> Result<Tooltip, DWORD> {
 
         // Update position to be below mouse and of the right size
         let mouse = crate::input::mouse::get().map_err(|_| GetLastError())?;
+        let x = if (mouse.0 as i32) < rect.right {
+            mouse.0 as i32 + 15
+        } else {
+            mouse.0 as i32 - rect.right
+        };
+        let y = mouse.1 as i32;
+
         if SetWindowPos(
             window.0,
             std::ptr::null_mut(),
-            mouse.0 as i32 - rect.right,
-            mouse.1 as i32,
+            x,
+            y,
             rect.right,
             rect.bottom,
             SWP_NOZORDER | SWP_NOACTIVATE,
