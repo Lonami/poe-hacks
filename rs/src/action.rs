@@ -63,7 +63,7 @@ enum PostCondition {
     PressKey { vk: u16 },
     Disconnect,
     Type { string: String },
-    TypePrice,
+    ShowPrice,
     InviteLast,
 }
 
@@ -243,7 +243,7 @@ impl PostCondition {
                 input::keyboard::press(VK_RETURN as u16);
                 Ok(())
             }
-            Self::TypePrice => {
+            Self::ShowPrice => {
                 // Press Ctrl+C
                 sleep(Duration::from_millis(200));
                 input::keyboard::ctrl_press(b'C' as u16);
@@ -403,7 +403,7 @@ impl Action {
                         WaitPostRemaining
                     }
                     "price" => {
-                        post = Some(PostCondition::TypePrice);
+                        post = Some(PostCondition::ShowPrice);
                         WaitKeyword
                     }
                     "invite" => {

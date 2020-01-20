@@ -194,8 +194,8 @@ pub fn create_tooltip(text: &str) -> Result<Tooltip, DWORD> {
         if SetWindowPos(
             window.0,
             std::ptr::null_mut(),
-            mouse.0 as i32,
-            mouse.1 as i32 + 20,
+            mouse.0 as i32 - rect.right,
+            mouse.1 as i32,
             rect.right,
             rect.bottom,
             SWP_NOZORDER | SWP_NOACTIVATE,
