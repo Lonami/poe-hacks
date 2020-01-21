@@ -24,6 +24,9 @@ use winapi::um::winnt::LPCSTR;
 struct Window(HWND);
 struct WindowDC(HDC);
 
+// TODO Probably should use https://doc.rust-lang.org/std/ffi/index.html to deal with wide strings
+// TODO Consider publishing this input lib on crates.io?
+
 pub struct Tooltip {
     _window: Window,
 }
