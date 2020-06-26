@@ -3,15 +3,36 @@ use std::sync::Mutex;
 
 lazy_static! {
     static ref LEAGUE: Mutex<Option<String>> = Mutex::new(None);
+    static ref EXALT_PRICE: Mutex<Option<f64>> = Mutex::new(None);
 }
+
+// TODO how to let the user change this? "sc" flag in .key file?
+const HARDCORE: bool = true;
+
+const USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0";
 
 fn query_poe_trade(data: &[(&str, &str)]) -> Result<String, String> {
     let response = attohttpc::post("https://poe.trade/search")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",
-        )
+        .header("User-Agent", USER_AGENT)
         .params(data)
+        .send()
+        .map_err(|e| format!("{:?}", e))?
+        .bytes()
+        .map_err(|e| format!("{:?}", e))?;
+
+    Ok(String::from_utf8_lossy(&response).to_string())
+}
+
+fn query_exalt_prices(league: &str) -> Result<String, String> {
+    let response = attohttpc::get("https://currency.poe.trade/search")
+        .header("User-Agent", USER_AGENT)
+        .params(&[
+            ("league", league),
+            ("online", "x"),
+            ("want", "4"),
+            ("have", "6"),
+        ])
         .send()
         .map_err(|e| format!("{:?}", e))?
         .bytes()
@@ -29,11 +50,11 @@ fn current_league() -> Result<String, String> {
 
     let json = Json::parse(&response).map_err(|e| e.1.to_string())?;
 
-    // json[4]["id"]
+    // json[#]["id"]
     match json {
         Json::ARRAY(array) => {
             match array
-                .get(5)
+                .get(if HARDCORE { 5 } else { 4 })
                 .ok_or(format!("{} are not enough leagues", array.len()))?
                 .get("id")
                 .ok_or(format!("no league id found"))?
@@ -49,13 +70,42 @@ fn current_league() -> Result<String, String> {
     }
 }
 
+fn find_attrs<'a>(html: &'a str, attr: &str) -> Vec<&'a str> {
+    html.match_indices(attr)
+        .flat_map(|(pos, _)| {
+            let pos = pos + attr.len();
+            match html[pos..].find('"') {
+                Some(quote_end) => Some(&html[pos..pos + quote_end]),
+                None => None,
+            }
+        })
+        .collect()
+}
+
+fn find_exalt_prices(league: &str) -> Result<Vec<f64>, String> {
+    let html = query_exalt_prices(league)?;
+    let sell_prices = find_attrs(&html, "data-sellvalue=\"");
+    let buy_prices = find_attrs(&html, "data-buyvalue=\"");
+
+    Ok(sell_prices
+        .into_iter()
+        .zip(buy_prices.into_iter())
+        .flat_map(
+            |(sell, buy)| match (sell.parse::<f64>(), buy.parse::<f64>()) {
+                (Ok(sell), Ok(buy)) => Some(sell / buy),
+                _ => None,
+            },
+        )
+        .collect())
+}
+
 fn parse_currency(string: &str) -> Option<f64> {
     let mut it = string.split_whitespace();
     if let Some(amount) = it.next() {
         if let Ok(amount) = amount.parse() {
             if let Some(kind) = it.next() {
                 return Some(match kind {
-                    "exalted" => amount * 64.0,
+                    "exalted" => amount * EXALT_PRICE.lock().unwrap().unwrap_or(64.0),
                     "chaos" => amount,
                     "fusing" => amount / 2.0,
                     "alchemy" => amount / 4.0,
@@ -95,6 +145,22 @@ pub fn find_unique_prices(unique: &str) -> Result<Vec<f64>, String> {
     }
 
     let league = league.as_ref().unwrap();
+
+    {
+        // update the exalt price if it's missing (else we'll use a default)
+        let mut exalt_price = EXALT_PRICE.lock().unwrap();
+        if exalt_price.is_none() {
+            match find_exalt_prices(league) {
+                Ok(prices) => {
+                    exalt_price.replace(prices.iter().take(5).sum::<f64>() / 5.0);
+                }
+                Err(e) => {
+                    eprintln!("failed to get exalt prices: {:?}", e);
+                }
+            }
+        }
+    }
+
     find_prices(&[
         ("league", league),
         ("type", ""),
