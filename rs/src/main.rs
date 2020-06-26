@@ -6,6 +6,9 @@ use rshacks::input;
 use std::thread::sleep;
 use std::time::Duration;
 
+#[macro_use]
+extern crate lazy_static;
+
 const DELAY: Duration = Duration::from_millis(10);
 
 fn main() {

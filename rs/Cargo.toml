@@ -17,3 +17,5 @@ path = "src/main.rs"
 
 [dependencies]
 attohttpc = "0.14.0"
+lazy_static = "1.4.0"
+json_minimal = "0.1.1"

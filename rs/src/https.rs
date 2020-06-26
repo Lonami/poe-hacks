@@ -1,14 +1,16 @@
-// Possible optimizations:
-// * pre-calculate serialized data length and use with capacity
-// * avoid strings and just use a byte buffer
-// * avoid format!() and just extend() sections
+use json_minimal::Json;
+use std::sync::Mutex;
 
-// TODO Don't hardcode league, fetch from http://api.pathofexile.com/leagues
+lazy_static! {
+    static ref LEAGUE: Mutex<Option<String>> = Mutex::new(None);
+}
 
 fn query_poe_trade(data: &[(&str, &str)]) -> Result<String, String> {
     let response = attohttpc::post("https://poe.trade/search")
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0")
-        .header("Cookie", " __vrz=1.16.10; league=Hardcore%20Metamorph; live_notify_sound=0; live_notify_browser=0; live_frequency=0")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",
+        )
         .params(data)
         .send()
         .map_err(|e| format!("{:?}", e))?
@@ -16,6 +18,35 @@ fn query_poe_trade(data: &[(&str, &str)]) -> Result<String, String> {
         .map_err(|e| format!("{:?}", e))?;
 
     Ok(String::from_utf8_lossy(&response).to_string())
+}
+
+fn current_league() -> Result<String, String> {
+    let response = attohttpc::get("http://api.pathofexile.com/leagues")
+        .send()
+        .map_err(|e| format!("{:?}", e))?
+        .bytes()
+        .map_err(|e| format!("{:?}", e))?;
+
+    let json = Json::parse(&response).map_err(|e| e.1.to_string())?;
+
+    // json[4]["id"]
+    match json {
+        Json::ARRAY(array) => {
+            match array
+                .get(5)
+                .ok_or(format!("{} are not enough leagues", array.len()))?
+                .get("id")
+                .ok_or(format!("no league id found"))?
+            {
+                Json::OBJECT { value, .. } => match value.unbox() {
+                    Json::STRING(string) => return Ok(string.clone()),
+                    _ => Err(format!("league id was not a string")),
+                },
+                _ => Err(format!("get failed to get an object")),
+            }
+        }
+        _ => Err(format!("api did not return an array")),
+    }
 }
 
 fn parse_currency(string: &str) -> Option<f64> {
@@ -58,8 +89,14 @@ pub fn find_prices(data: &[(&str, &str)]) -> Result<Vec<f64>, String> {
 }
 
 pub fn find_unique_prices(unique: &str) -> Result<Vec<f64>, String> {
+    let mut league = LEAGUE.lock().unwrap();
+    if league.is_none() {
+        league.replace(current_league()?);
+    }
+
+    let league = league.as_ref().unwrap();
     find_prices(&[
-        ("league", "Hardcore Metamorph"),
+        ("league", league),
         ("type", ""),
         ("base", ""),
         ("name", unique),
