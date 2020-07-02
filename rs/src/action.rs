@@ -303,7 +303,7 @@ impl PostCondition {
 
 impl Action {
     fn from_line(line: &str, screen_size: (usize, usize)) -> Result<Option<Action>, String> {
-        if line.starts_with("//") {
+        if line.starts_with("//") || line.chars().all(|c| c.is_whitespace()) {
             return Ok(None);
         }
 
