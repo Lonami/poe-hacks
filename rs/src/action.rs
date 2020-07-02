@@ -344,7 +344,7 @@ impl Action {
                     "life" => WaitLifeValue,
                     "es" => WaitEsValue,
                     "mana" => WaitManaValue,
-                    "key" => WaitKeyValue,
+                    "flask" | "key" | "skill" => WaitKeyValue,
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
@@ -395,7 +395,7 @@ impl Action {
                         post = Some(PostCondition::Disconnect);
                         WaitKeyword
                     }
-                    "flask" => WaitPostValue,
+                    "flask" | "key" | "skill" => WaitPostValue,
                     "type" => {
                         post = Some(PostCondition::Type {
                             string: String::new(),
