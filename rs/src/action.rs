@@ -39,6 +39,15 @@ const DECO_Y0: f64 = 1.0 - (130.0 / 1080.0);
 const DECO_X1: f64 = 69.0 / 1920.0;
 const DECO_Y1: f64 = 1.0 - (44.0 / 1080.0);
 
+// Where to click to enable/disable downscaling
+const PARTY_X: f64 = 350.0 / 1920.0;
+const PARTY_Y: f64 = 185.0 / 1080.0;
+
+const DOWNSCALING_SELECT_X: f64 = 500.0 / 1920.0;
+const DOWNSCALING_SELECT_Y: f64 = 800.0 / 1080.0;
+const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
+const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
+
 // The color distance threshold after which we consider it to have changed.
 // Experimental values (blood magic + auras with some ES to test at 80%).
 const COLOR_DISTANCE_SQ: i32 = 70 * 70;
@@ -66,6 +75,7 @@ enum PostCondition {
     ShowPrice,
     InviteLast,
     Destroy,
+    Downscaling { enable: bool },
 }
 
 struct Action {
@@ -220,7 +230,7 @@ impl PreCondition {
 }
 
 impl PostCondition {
-    fn act(&self) -> Result<(), &'static str> {
+    fn act(&self, width: usize, height: usize) -> Result<(), &'static str> {
         match self {
             Self::PressKey { vk } => {
                 input::keyboard::press(*vk);
@@ -303,6 +313,37 @@ impl PostCondition {
                 input::keyboard::ctrl_press(VK_RETURN as u16);
                 input::keyboard::type_string("/destroy");
                 input::keyboard::ctrl_press(VK_RETURN as u16);
+                Ok(())
+            }
+            Self::Downscaling { enable } => {
+                let rel_click = |x, y| -> Result<(), &'static str> {
+                    input::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
+                        .map_err(|_| "failed to move mouse")?;
+
+                    sleep(Duration::from_millis(64));
+                    input::mouse::click(input::mouse::Button::Left);
+                    Ok(())
+                };
+
+                let downscaling_select_y = if *enable {
+                    DOWNSCALING_ENABLE_Y
+                } else {
+                    DOWNSCALING_DISABLE_Y
+                };
+
+                let (old_x, old_y) =
+                    input::mouse::get().map_err(|_| "failed to get original mouse pos")?;
+
+                input::keyboard::press(b'S' as u16);
+                sleep(Duration::from_millis(128));
+                rel_click(PARTY_X, PARTY_Y)?;
+                rel_click(DOWNSCALING_SELECT_X, DOWNSCALING_SELECT_Y)?;
+                rel_click(DOWNSCALING_SELECT_X, downscaling_select_y)?;
+                input::keyboard::press(b'S' as u16);
+
+                input::mouse::set(old_x, old_y)
+                    .map_err(|_| "failed to restore original mouse pos")?;
+
                 Ok(())
             }
         }
@@ -422,6 +463,14 @@ impl Action {
                         post = Some(PostCondition::Destroy);
                         WaitKeyword
                     }
+                    "downscale" => {
+                        post = Some(PostCondition::Downscaling { enable: true });
+                        WaitKeyword
+                    }
+                    "upscale" => {
+                        post = Some(PostCondition::Downscaling { enable: false });
+                        WaitKeyword
+                    }
                     _ => return Err(format!("found unknown action '{}'", word)),
                 },
                 WaitPostValue => {
@@ -496,13 +545,13 @@ impl Action {
         }
     }
 
-    fn try_trigger(&mut self) -> Result<(), &'static str> {
+    fn try_trigger(&mut self, width: usize, height: usize) -> Result<(), &'static str> {
         self.last_trigger = Instant::now();
-        self.post.act()
+        self.post.act(width, height)
     }
 
-    fn trigger(&mut self) {
-        if let Err(message) = self.try_trigger() {
+    fn trigger(&mut self, width: usize, height: usize) {
+        if let Err(message) = self.try_trigger(width, height) {
             eprintln!("warning: run failed: {}: {}", self.display, message);
         } else {
             eprintln!("note: ran successfully: {}", self.display);
@@ -557,11 +606,13 @@ impl ActionSet {
     }
 
     pub fn check_all(&mut self) {
+        let (width, height) = (self.width, self.height);
+
         // First try inconditional actions
         self.actions
             .iter_mut()
             .filter(|a| a.special() && a.check())
-            .for_each(|a| a.trigger());
+            .for_each(|a| a.trigger(width, height));
 
         // This decoration check can't be a `fn(&self)` because that takes
         // an immutable reference (and `actions_to_trigger` has mutable)
@@ -592,7 +643,9 @@ impl ActionSet {
                 .collect();
 
             if deco_check() {
-                actions_to_trigger.into_iter().for_each(|a| a.trigger());
+                actions_to_trigger
+                    .into_iter()
+                    .for_each(|a| a.trigger(width, height));
             }
         }
     }
