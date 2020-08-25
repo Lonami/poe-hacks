@@ -65,6 +65,7 @@ enum PostCondition {
     Type { string: String },
     ShowPrice,
     InviteLast,
+    Destroy,
 }
 
 struct Action {
@@ -297,6 +298,13 @@ impl PostCondition {
                 input::keyboard::ctrl_press(VK_RETURN as u16);
                 Ok(())
             }
+            Self::Destroy => {
+                input::mouse::click(input::mouse::Button::Left);
+                input::keyboard::ctrl_press(VK_RETURN as u16);
+                input::keyboard::type_string("/destroy");
+                input::keyboard::ctrl_press(VK_RETURN as u16);
+                Ok(())
+            }
         }
     }
 }
@@ -408,6 +416,10 @@ impl Action {
                     }
                     "invite" => {
                         post = Some(PostCondition::InviteLast);
+                        WaitKeyword
+                    }
+                    "destroy" => {
+                        post = Some(PostCondition::Destroy);
                         WaitKeyword
                     }
                     _ => return Err(format!("found unknown action '{}'", word)),
