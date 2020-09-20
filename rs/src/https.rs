@@ -1,5 +1,6 @@
-use json_minimal::Json;
+use std::collections::HashMap;
 use std::sync::Mutex;
+use tinyjson::JsonValue as Json;
 
 lazy_static! {
     static ref LEAGUE: Mutex<Option<String>> = Mutex::new(None);
@@ -45,29 +46,23 @@ fn current_league() -> Result<String, String> {
     let response = attohttpc::get("http://api.pathofexile.com/leagues")
         .send()
         .map_err(|e| format!("{:?}", e))?
-        .bytes()
+        .text()
         .map_err(|e| format!("{:?}", e))?;
 
-    let json = Json::parse(&response).map_err(|e| e.1.to_string())?;
+    let json = response.parse::<Json>().map_err(|e| e.to_string())?;
 
     // json[#]["id"]
-    match json {
-        Json::ARRAY(array) => {
-            match array
-                .get(if HARDCORE { 5 } else { 4 })
-                .ok_or(format!("{} are not enough leagues", array.len()))?
-                .get("id")
-                .ok_or(format!("no league id found"))?
-            {
-                Json::OBJECT { value, .. } => match value.unbox() {
-                    Json::STRING(string) => return Ok(string.clone()),
-                    _ => Err(format!("league id was not a string")),
-                },
-                _ => Err(format!("get failed to get an object")),
-            }
-        }
-        _ => Err(format!("api did not return an array")),
-    }
+    json.get::<Vec<_>>()
+        .ok_or("api did not return an array".to_string())?
+        .get(if HARDCORE { 5 } else { 4 })
+        .ok_or("not enough items in array".to_string())?
+        .get::<HashMap<_, _>>()
+        .ok_or("failed to get an object from array".to_string())?
+        .get("id")
+        .ok_or("no league id found in object")?
+        .get::<String>()
+        .ok_or("league id was not a string".to_string())
+        .map(|id| id.to_string())
 }
 
 fn find_attrs<'a>(html: &'a str, attr: &str) -> Vec<&'a str> {
