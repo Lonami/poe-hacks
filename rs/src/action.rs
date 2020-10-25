@@ -493,14 +493,6 @@ impl Action {
         }))
     }
 
-    fn special(&self) -> bool {
-        self.post == PostCondition::Disconnect
-            && match self.pre {
-                PreCondition::KeyPress { .. } => true,
-                _ => false,
-            }
-    }
-
     fn check(&self) -> bool {
         self.pre.is_valid() && self.last_trigger.elapsed() > self.delay
     }
@@ -561,37 +553,11 @@ impl ActionSet {
 
     pub fn check_all(&mut self) {
         let (width, height) = (self.width, self.height);
-
-        // First try inconditional actions
-        self.actions
-            .iter_mut()
-            .filter(|a| a.special() && a.check())
-            .for_each(|a| a.trigger(width, height));
-
-        // This decoration check can't be a `fn(&self)` because that takes
-        // an immutable reference (and `actions_to_trigger` has mutable)
-        // which wouldn't work. However, the lambda seems to be fine.
-        let decorations = &self.decorations;
-        let deco_check = || decorations.iter().all(|d| !d.changed());
-
-        // Then, check decorations before determining other actions and
-        // also after. This is important because loading screens somehow
-        // trip us up if we skip either decoration check (before or after).
-        if deco_check() {
-            // Note: the collect is important because we want to check the
-            //       decorations immediately, not lazily! Otherwise, both
-            //       decoration checks would happen *before* and none after.
-            let actions_to_trigger: Vec<&mut Action> = self
-                .actions
+        if self.decorations.iter().all(|d| !d.changed()) {
+            self.actions
                 .iter_mut()
-                .filter(|a| !a.special() && a.check())
-                .collect();
-
-            if deco_check() {
-                actions_to_trigger
-                    .into_iter()
-                    .for_each(|a| a.trigger(width, height));
-            }
+                .filter(|a| a.check())
+                .for_each(|a| a.trigger(width, height));
         }
     }
 }
