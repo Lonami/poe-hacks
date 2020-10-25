@@ -3,22 +3,25 @@
 use crate::globals;
 
 use std::io::Error;
-use std::mem::MaybeUninit;
-
-use winapi::um::winuser::{
-    CreateWindowExA, DefWindowProcA, DestroyWindow, DrawTextA, GetDesktopWindow, GetWindowDC,
-    GetWindowRect, RegisterClassExA, SetWindowPos, COLOR_WINDOW, CW_USEDEFAULT, DT_CALCRECT,
-    DT_NOCLIP, DT_SINGLELINE, SWP_NOACTIVATE, SWP_NOZORDER, WNDCLASSEXA, WS_EX_TOPMOST, WS_POPUP,
-    WS_VISIBLE,
-};
-
-use winapi::shared::minwindef::{ATOM, DWORD};
-use winapi::shared::windef::{HBRUSH, HDC, HWND, RECT};
+use std::mem::{self, MaybeUninit};
+use std::ptr;
+use winapi::shared::minwindef::{ATOM, DWORD, LPVOID};
+use winapi::shared::windef::{HBITMAP, HBRUSH, HDC, HGDIOBJ, HWND, RECT};
+use winapi::shared::winerror::ERROR_INVALID_PARAMETER;
 use winapi::um::commctrl::TOOLTIPS_CLASS;
 use winapi::um::errhandlingapi::GetLastError;
-
-use winapi::um::wingdi::{DeleteDC, GetPixel, SetBkMode, SetTextColor, CLR_INVALID, TRANSPARENT};
+use winapi::um::wingdi::{
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
+    GetPixel, SelectObject, SetBkMode, SetTextColor, BITMAPINFO, BI_RGB, CLR_INVALID,
+    DIB_RGB_COLORS, HGDI_ERROR, SRCCOPY, TRANSPARENT,
+};
 use winapi::um::winnt::LPCSTR;
+use winapi::um::winuser::{
+    CreateWindowExA, DefWindowProcA, DestroyWindow, DrawTextA, GetDC, GetDesktopWindow,
+    GetWindowDC, GetWindowRect, RegisterClassExA, ReleaseDC, SetWindowPos, COLOR_WINDOW,
+    CW_USEDEFAULT, DT_CALCRECT, DT_NOCLIP, DT_SINGLELINE, SWP_NOACTIVATE, SWP_NOZORDER,
+    WNDCLASSEXA, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+};
 
 // Structures used for the automatic `Drop` cleanup
 struct Window(HWND);
@@ -26,6 +29,124 @@ struct WindowDC(HDC);
 
 // TODO Probably should use https://doc.rust-lang.org/std/ffi/index.html to deal with wide strings
 // TODO Consider publishing this input lib on crates.io?
+
+const ORB_START_Y: f64 = 0.8;
+
+pub struct Screen {
+    dc: HDC,
+    dc_mem: HDC,
+    bmp: HGDIOBJ,
+    bmp_info: BITMAPINFO,
+    width: usize,
+    height: usize,
+    colors: Box<[u8]>,
+    offset_y: usize,
+}
+
+impl Screen {
+    pub fn new() -> Result<Self, &'static str> {
+        let (width, height) = size().unwrap();
+        let offset_y = (ORB_START_Y * height as f64) as usize;
+
+        // On average, taking just 20% of the screen seems to take 5ms less (from 25ms otherwise).
+        // Still quite expensive to get pixels from the screen, but slightly better.
+        // This makes the code highly specialised for that one use case, and won't work beyond that.
+        let height = height - offset_y;
+
+        let dc = unsafe { GetDC(ptr::null_mut()) };
+        if dc.is_null() {
+            return Err("failed to get root dc");
+        }
+        let dc_mem = unsafe { CreateCompatibleDC(ptr::null_mut()) };
+        if dc_mem.is_null() {
+            return Err("failed to create compatible root dc");
+        }
+        let bmp = unsafe { CreateCompatibleBitmap(dc, width as i32, height as i32) as HGDIOBJ };
+        if bmp.is_null() {
+            return Err("failed to create compatible bitmap");
+        }
+        let so = unsafe { SelectObject(dc_mem, bmp) };
+        if so.is_null() {
+            return Err("failed to select object: invalid region");
+        }
+        if so == HGDI_ERROR {
+            return Err("failed to select object: gdi error");
+        }
+
+        let mut bmp_info: BITMAPINFO = unsafe { mem::zeroed() };
+        bmp_info.bmiHeader.biBitCount = 24;
+        bmp_info.bmiHeader.biCompression = BI_RGB;
+        bmp_info.bmiHeader.biPlanes = 1;
+        bmp_info.bmiHeader.biHeight = -(height as i32); // a top-down DIB is specified by setting the height to a negative number
+        bmp_info.bmiHeader.biWidth = width as i32;
+        bmp_info.bmiHeader.biSize = mem::size_of::<BITMAPINFO>() as u32;
+        let colors = vec![0; height * width * 3];
+
+        Ok(Self {
+            dc,
+            dc_mem,
+            bmp,
+            bmp_info,
+            width,
+            height,
+            colors: colors.into_boxed_slice(),
+            offset_y,
+        })
+    }
+
+    pub fn refresh(&mut self) -> Result<(), &'static str> {
+        let res = unsafe {
+            BitBlt(
+                self.dc_mem,
+                0,
+                0,
+                self.width as i32,
+                self.height as i32,
+                self.dc,
+                0,
+                self.offset_y as i32,
+                SRCCOPY,
+            )
+        };
+        if res == 0 {
+            return Err("failed to bit-block transfer screen data");
+        };
+        let res = unsafe {
+            GetDIBits(
+                self.dc_mem,
+                self.bmp as HBITMAP,
+                0,
+                self.height as u32,
+                self.colors.as_mut_ptr() as LPVOID,
+                &mut self.bmp_info,
+                DIB_RGB_COLORS,
+            )
+        };
+        if res == 0 {
+            return Err("failed to get bits from compatible bitmap");
+        }
+        if res == ERROR_INVALID_PARAMETER as i32 {
+            return Err("failed to get bits from compatible bitmap: invalid parameter");
+        }
+        Ok(())
+    }
+
+    pub fn color(&self, x: usize, y: usize) -> (u8, u8, u8) {
+        // Will be out of bounds when selecting colors above the orbs or out of screen
+        let i = ((y - self.offset_y) * self.width + x) * 3;
+        (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
+    }
+}
+
+impl Drop for Screen {
+    fn drop(&mut self) {
+        unsafe {
+            DeleteObject(self.bmp);
+            DeleteDC(self.dc_mem);
+            ReleaseDC(ptr::null_mut(), self.dc);
+        }
+    }
+}
 
 pub struct Tooltip {
     _window: Window,

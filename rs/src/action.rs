@@ -1,6 +1,6 @@
 use crate::https;
 
-use rshacks::{input, proc};
+use rshacks::{globals, input, proc};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -55,7 +55,7 @@ const COLOR_DISTANCE_SQ: i32 = 70 * 70;
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ScreenPoint {
     x: usize,
     y: usize,
@@ -94,15 +94,12 @@ pub struct ActionSet {
 }
 
 impl ScreenPoint {
-    fn new(x: usize, y: usize) -> Option<Self> {
-        if let Ok(rgb) = input::screen::color(x, y) {
-            Some(Self { x, y, rgb })
-        } else {
-            None
-        }
+    fn new(x: usize, y: usize) -> Self {
+        let rgb = globals::get_cached_color(x, y);
+        Self { x, y, rgb }
     }
 
-    fn new_life(percent: f64, width: usize, height: usize) -> Option<Self> {
+    fn new_life(percent: f64, width: usize, height: usize) -> Self {
         let y = LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent);
         if y > LIFE_Y_UNSAFE {
             eprintln!(
@@ -116,7 +113,7 @@ impl ScreenPoint {
         )
     }
 
-    fn new_es(percent: f64, width: usize, height: usize) -> Option<Self> {
+    fn new_es(percent: f64, width: usize, height: usize) -> Self {
         // x²/a² + y²/b² = 1
         // x = √(a² * (1 - y²/b²))
         let a = LIFE_RX;
@@ -129,7 +126,7 @@ impl ScreenPoint {
         )
     }
 
-    fn new_mana(percent: f64, width: usize, height: usize) -> Option<Self> {
+    fn new_mana(percent: f64, width: usize, height: usize) -> Self {
         let y = MANA_CY + MANA_RY * 2.0 * (0.5 - percent);
         if y > MANA_Y_UNSAFE {
             eprintln!(
@@ -143,41 +140,35 @@ impl ScreenPoint {
         )
     }
 
-    fn new_deco1(width: usize, height: usize) -> Option<Self> {
+    fn new_deco1(width: usize, height: usize) -> Self {
         Self::new(
             (width as f64 * DECO_X0) as usize,
             (height as f64 * DECO_Y0) as usize,
         )
     }
 
-    fn new_deco2(width: usize, height: usize) -> Option<Self> {
+    fn new_deco2(width: usize, height: usize) -> Self {
         Self::new(
             (width as f64 * DECO_X1) as usize,
             (height as f64 * DECO_Y1) as usize,
         )
     }
 
-    fn changed(&self) -> Option<bool> {
-        if let Ok(rgb) = input::screen::color(self.x, self.y) {
-            Some(self.rgb != rgb)
-        } else {
-            None
-        }
+    fn changed(&self) -> bool {
+        let rgb = globals::get_cached_color(self.x, self.y);
+        self.rgb != rgb
     }
 
-    fn different(&self) -> Option<bool> {
+    fn different(&self) -> bool {
         // It's a constant so the compiler should optimize this branch
         if COLOR_DISTANCE_SQ == 1 {
             self.changed()
-        } else if let Ok(rgb) = input::screen::color(self.x, self.y) {
-            Some(
-                (self.rgb.0 as i32 - rgb.0 as i32).pow(2)
-                    + (self.rgb.1 as i32 - rgb.1 as i32).pow(2)
-                    + (self.rgb.2 as i32 - rgb.2 as i32).pow(2)
-                    >= COLOR_DISTANCE_SQ,
-            )
         } else {
-            None
+            let rgb = globals::get_cached_color(self.x, self.y);
+            (self.rgb.0 as i32 - rgb.0 as i32).pow(2)
+                + (self.rgb.1 as i32 - rgb.1 as i32).pow(2)
+                + (self.rgb.2 as i32 - rgb.2 as i32).pow(2)
+                >= COLOR_DISTANCE_SQ
         }
     }
 }
@@ -215,16 +206,10 @@ fn parse_vk(word: &str) -> Result<u16, &'static str> {
 }
 
 impl PreCondition {
-    fn is_valid(&self) -> Result<bool, &'static str> {
+    fn is_valid(&self) -> bool {
         match self {
-            Self::ScreenChange { point } => {
-                if let Some(changed) = point.different() {
-                    Ok(changed)
-                } else {
-                    Err("failed to detect color change")
-                }
-            }
-            Self::KeyPress { vk } => Ok(input::keyboard::is_down(*vk)),
+            Self::ScreenChange { point } => point.different(),
+            Self::KeyPress { vk } => input::keyboard::is_down(*vk),
         }
     }
 }
@@ -399,36 +384,21 @@ impl Action {
                 WaitLifeValue => {
                     let percent = parse_percentage(word)?;
                     pre = Some(PreCondition::ScreenChange {
-                        point: match ScreenPoint::new_life(percent, width, height) {
-                            Some(value) => value,
-                            None => {
-                                return Err(format!("could not read life pixel at {:.2}", percent))
-                            }
-                        },
+                        point: ScreenPoint::new_life(percent, width, height),
                     });
                     WaitKeyword
                 }
                 WaitEsValue => {
                     let percent = parse_percentage(word)?;
                     pre = Some(PreCondition::ScreenChange {
-                        point: match ScreenPoint::new_es(percent, width, height) {
-                            Some(value) => value,
-                            None => {
-                                return Err(format!("could not read es pixel at {:.2}", percent))
-                            }
-                        },
+                        point: ScreenPoint::new_es(percent, width, height),
                     });
                     WaitKeyword
                 }
                 WaitManaValue => {
                     let percent = parse_percentage(word)?;
                     pre = Some(PreCondition::ScreenChange {
-                        point: match ScreenPoint::new_mana(percent, width, height) {
-                            Some(value) => value,
-                            None => {
-                                return Err(format!("could not read mana pixel at {:.2}", percent))
-                            }
-                        },
+                        point: ScreenPoint::new_mana(percent, width, height),
                     });
                     WaitKeyword
                 }
@@ -531,18 +501,8 @@ impl Action {
             }
     }
 
-    fn try_check(&self) -> Result<bool, &'static str> {
-        Ok(self.pre.is_valid()? && self.last_trigger.elapsed() > self.delay)
-    }
-
     fn check(&self) -> bool {
-        match self.try_check() {
-            Ok(x) => x,
-            Err(message) => {
-                eprintln!("warning: checking action failed: {}", message);
-                false
-            }
-        }
+        self.pre.is_valid() && self.last_trigger.elapsed() > self.delay
     }
 
     fn try_trigger(&mut self, width: usize, height: usize) -> Result<(), &'static str> {
@@ -587,14 +547,8 @@ impl ActionSet {
         };
 
         let decorations = [
-            match ScreenPoint::new_deco1(width, height) {
-                Some(value) => value,
-                None => return Err("could not read deco 1 pixel"),
-            },
-            match ScreenPoint::new_deco2(width, height) {
-                Some(value) => value,
-                None => return Err("could not read deco 2 pixel"),
-            },
+            ScreenPoint::new_deco1(width, height),
+            ScreenPoint::new_deco2(width, height),
         ];
 
         Ok(ActionSet {
@@ -618,16 +572,7 @@ impl ActionSet {
         // an immutable reference (and `actions_to_trigger` has mutable)
         // which wouldn't work. However, the lambda seems to be fine.
         let decorations = &self.decorations;
-        let deco_check = || {
-            decorations.iter().all(|decoration| {
-                if let Some(changed) = decoration.changed() {
-                    !changed
-                } else {
-                    eprintln!("warning: failed to check decoration pixel");
-                    false
-                }
-            })
-        };
+        let deco_check = || decorations.iter().all(|d| !d.changed());
 
         // Then, check decorations before determining other actions and
         // also after. This is important because loading screens somehow

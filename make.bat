@@ -1,8 +1,5 @@
 @echo off
 
-mkdir bin > NUL 2>&1
-del bin\*.exe > NUL 2>&1
-
 set WINKIT=C:\Program Files (x86)\Windows Kits\10
 set WINVER=10.0.18362.0
 
