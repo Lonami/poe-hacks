@@ -4,12 +4,13 @@ mod https;
 use crate::action::ActionSet;
 use rshacks::{globals, input};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[macro_use]
 extern crate lazy_static;
 
 const DELAY: Duration = Duration::from_millis(10);
+const TOO_LONG: Duration = Duration::from_millis(100);
 
 fn main() {
     globals::new_screen();
@@ -48,7 +49,13 @@ fn main() {
 
     eprintln!("loaded {}", actions);
     println!("poe-hacks is now running");
+    let mut last = Instant::now();
     loop {
+        let now = Instant::now();
+        if (now - last) > TOO_LONG {
+            eprintln!("warning: check is taking too long: {:?}", now - last);
+        }
+        last = now;
         // Taking a new "screenshot" of the entire screen takes ~30ms...
         // But if we don't sleep at all we use too much CPU.
         // 30ms is still better than 16ms **per point** we had with `GetPixel` anyway.
