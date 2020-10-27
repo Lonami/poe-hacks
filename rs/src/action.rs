@@ -49,8 +49,9 @@ const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
 const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
 
 // The color distance threshold after which we consider it to have changed.
-// Experimental values (blood magic + auras with some ES to test at 80%).
-const COLOR_DISTANCE_SQ: i32 = 70 * 70;
+// Tested on all ES ranges with all life reserved (30 disconnects, 40 doesn't),
+// going in and out of town (having no life works fine too).
+const ES_COLOR_THRESHOLD_SQ: i32 = 40 * 40;
 
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
@@ -60,6 +61,7 @@ struct ScreenPoint {
     x: usize,
     y: usize,
     rgb: (u8, u8, u8),
+    distance: i32,
 }
 
 enum PreCondition {
@@ -96,7 +98,12 @@ pub struct ActionSet {
 impl ScreenPoint {
     fn new(x: usize, y: usize) -> Self {
         let rgb = globals::get_cached_color(x, y);
-        Self { x, y, rgb }
+        Self {
+            x,
+            y,
+            rgb,
+            distance: 1,
+        }
     }
 
     fn new_life(percent: f64, width: usize, height: usize) -> Self {
@@ -120,10 +127,19 @@ impl ScreenPoint {
         let b = LIFE_RY;
         let y = b * 2.0 * (0.5 - percent);
         let x = f64::sqrt(a.powi(2) * (1.0 - y.powi(2) / b.powi(2)));
-        Self::new(
-            (width as f64 * (LIFE_CX + x)) as usize,
-            (height as f64 * (LIFE_CY + y)) as usize,
-        )
+
+        let x = (width as f64 * (LIFE_CX + x)) as usize;
+        let y = (height as f64 * (LIFE_CY + y)) as usize;
+        let rgb = globals::get_cached_color(x, y);
+        // Only ES needs a threshold because life can be reserved. The colors of everything else
+        // must match exactly. It is risky to use the threshold anywhere else because the ground
+        // may be close enough (e.g. mana).
+        Self {
+            x,
+            y,
+            rgb,
+            distance: ES_COLOR_THRESHOLD_SQ,
+        }
     }
 
     fn new_mana(percent: f64, width: usize, height: usize) -> Self {
@@ -160,15 +176,14 @@ impl ScreenPoint {
     }
 
     fn different(&self) -> bool {
-        // It's a constant so the compiler should optimize this branch
-        if COLOR_DISTANCE_SQ == 1 {
+        if self.distance == 1 {
             self.changed()
         } else {
             let rgb = globals::get_cached_color(self.x, self.y);
             (self.rgb.0 as i32 - rgb.0 as i32).pow(2)
                 + (self.rgb.1 as i32 - rgb.1 as i32).pow(2)
                 + (self.rgb.2 as i32 - rgb.2 as i32).pow(2)
-                >= COLOR_DISTANCE_SQ
+                >= self.distance
         }
     }
 }
