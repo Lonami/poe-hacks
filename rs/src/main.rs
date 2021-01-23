@@ -1,5 +1,6 @@
 mod action;
 mod https;
+mod utils;
 
 use crate::action::ActionSet;
 use rshacks::{globals, win};

@@ -3,7 +3,7 @@ use std::mem::{self, MaybeUninit};
 use std::num::ParseIntError;
 use std::ptr::{self, NonNull};
 use std::str::FromStr;
-use winapi::shared::minwindef::{BOOL, DWORD, HMODULE, PDWORD, ULONG, FALSE};
+use winapi::shared::minwindef::{BOOL, DWORD, FALSE, HMODULE, PDWORD, ULONG};
 use winapi::shared::ntdef::PVOID;
 use winapi::shared::winerror::NO_ERROR;
 use winapi::shared::ws2def::AF_INET;
@@ -113,11 +113,13 @@ impl Process {
     pub fn open_by_name(starts_with: &str) -> Option<Process> {
         let mut size = 0;
         let mut pids = Vec::<DWORD>::with_capacity(1024);
-        if unsafe { winapi::um::psapi::EnumProcesses(
-            pids.as_mut_ptr(),
-            (pids.capacity() * mem::size_of::<DWORD>()) as u32,
-            &mut size,
-        ) } == FALSE
+        if unsafe {
+            winapi::um::psapi::EnumProcesses(
+                pids.as_mut_ptr(),
+                (pids.capacity() * mem::size_of::<DWORD>()) as u32,
+                &mut size,
+            )
+        } == FALSE
         {
             return None;
         }
