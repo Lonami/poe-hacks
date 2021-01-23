@@ -48,6 +48,26 @@ const DOWNSCALING_SELECT_Y: f64 = 800.0 / 1080.0;
 const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
 const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
 
+// In-memory structures
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct Health {
+    hp: i32,
+    max_hp: i32,
+    unreserved_hp: i32,
+    es: i32,
+    max_es: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct Mana {
+    mana: i32,
+    max_mana: i32,
+    unreserved_mana: i32,
+}
+
+
 // The color distance threshold after which we consider it to have changed.
 // Tested on all ES ranges with all life reserved (30 disconnects, 40 doesn't),
 // going in and out of town (having no life works fine too).
@@ -236,9 +256,9 @@ impl PostCondition {
                 input::keyboard::press(*vk);
                 Ok(())
             }
-            Self::Disconnect => match proc::find_proc(POE_EXE) {
+            Self::Disconnect => match proc::Process::open_by_name(POE_EXE) {
                 None => Err("could not find poe running"),
-                Some(pid) => match proc::kill_network(pid) {
+                Some(proc) => match proc::kill_network(proc.pid) {
                     Err(_) => Err("failed to kill poe network"),
                     Ok(n) => {
                         if n > 0 {

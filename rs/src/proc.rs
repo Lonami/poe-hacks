@@ -1,22 +1,13 @@
-use std::mem::{size_of, MaybeUninit};
-
-use winapi::{ENUM, STRUCT};
-
-use winapi::shared::minwindef::{BOOL, DWORD, HMODULE, PDWORD, ULONG};
-
+use std::io;
+use std::mem::{self, MaybeUninit};
+use std::num::ParseIntError;
+use std::ptr::{self, NonNull};
+use std::str::FromStr;
+use winapi::shared::minwindef::{BOOL, DWORD, HMODULE, PDWORD, ULONG, FALSE};
 use winapi::shared::ntdef::PVOID;
-
-use winapi::shared::ws2def::AF_INET;
-
 use winapi::shared::winerror::NO_ERROR;
-
-use winapi::um::psapi::{EnumProcessModules, EnumProcesses, GetModuleBaseNameA};
-
-use winapi::um::processthreadsapi::OpenProcess;
-
-use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-
-use winapi::um::handleapi::CloseHandle;
+use winapi::shared::ws2def::AF_INET;
+use winapi::{ENUM, STRUCT};
 
 const ANY_SIZE: usize = 1;
 
@@ -63,6 +54,9 @@ STRUCT! {#[allow(non_snake_case)] struct MIB_TCPROW {
 #[allow(non_camel_case_types)]
 pub type PMIB_TCPROW = *mut MIB_TCPROW;
 
+const SCAN_START: usize = 0x0000000000000000;
+const SCAN_END: usize = 0x00007fffffffffff;
+
 #[link(name = "iphlpapi")]
 extern "system" {
     // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
@@ -78,13 +72,196 @@ extern "system" {
     pub fn SetTcpEntry(pTcpRow: PMIB_TCPROW) -> DWORD;
 }
 
+// Steps using Cheat Engine:
+// 1. Find life (4 bytes integer, scan for it, get hit, next scan...).
+// 2. Once you have two values view their memory. Pick the one with (current life, max life, max life, current es, max es).
+// 3. Generate pointermap.
+// 4. Relog (or change character, or restart the game).
+// 5. Repeat steps 1 and 2.
+// 6. Pointer scan for this address. Compare results with other saved pointermap(s). Select address.
+// 7. Done! Double-click on your favourite (shorter?) pointer map and note the offsets here.
+//
+// Do the same for mana.
+pub struct PtrMap {
+    offsets: Vec<usize>,
+}
+
+impl FromStr for PtrMap {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.replace(",", "")
+            .split_whitespace()
+            .map(|x| {
+                if x.starts_with("0x") || x.starts_with("0X") {
+                    usize::from_str_radix(&x[2..], 16)
+                } else {
+                    x.parse::<usize>()
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|offsets| Self { offsets })
+    }
+}
+
+pub struct Process {
+    pub pid: u32,
+    handle: NonNull<winapi::ctypes::c_void>,
+}
+
+impl Process {
+    pub fn open_by_name(starts_with: &str) -> Option<Process> {
+        let mut size = 0;
+        let mut pids = Vec::<DWORD>::with_capacity(1024);
+        if unsafe { winapi::um::psapi::EnumProcesses(
+            pids.as_mut_ptr(),
+            (pids.capacity() * mem::size_of::<DWORD>()) as u32,
+            &mut size,
+        ) } == FALSE
+        {
+            return None;
+        }
+
+        for i in 0..(size as usize / mem::size_of::<DWORD>()).min(pids.capacity()) {
+            let pid = unsafe { *pids.get_unchecked(i) };
+            if pid != 0 {
+                match Process::open(pid) {
+                    Ok(proc) => match proc.name() {
+                        Ok(name) => {
+                            if name.starts_with(starts_with) {
+                                return Some(proc);
+                            }
+                        }
+                        _ => continue,
+                    },
+                    _ => continue,
+                }
+            }
+        }
+        None
+    }
+
+    pub fn open(pid: u32) -> io::Result<Self> {
+        NonNull::new(unsafe {
+            winapi::um::processthreadsapi::OpenProcess(
+                winapi::um::winnt::PROCESS_QUERY_INFORMATION | winapi::um::winnt::PROCESS_VM_READ,
+                FALSE,
+                pid,
+            )
+        })
+        .map(|handle| Self { pid, handle })
+        .ok_or(io::Error::last_os_error())
+    }
+
+    pub fn base_addr(&self) -> io::Result<HMODULE> {
+        let mut size = 0u32;
+        let mut module = MaybeUninit::<HMODULE>::uninit();
+
+        if unsafe {
+            winapi::um::psapi::EnumProcessModules(
+                self.handle.as_ptr(),
+                module.as_mut_ptr(),
+                mem::size_of::<HMODULE>() as u32,
+                &mut size,
+            )
+        } == FALSE
+        {
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(unsafe { module.assume_init() })
+    }
+
+    pub fn name(&self) -> io::Result<String> {
+        let mut buffer = Vec::with_capacity(64);
+        let length = unsafe {
+            winapi::um::psapi::GetModuleBaseNameA(
+                self.handle.as_ptr(),
+                self.base_addr()?,
+                buffer.as_mut_ptr(),
+                buffer.capacity() as u32,
+            )
+        };
+        if length != 0 {
+            unsafe { buffer.set_len(length as usize) };
+            String::from_utf8(buffer.iter().map(|b| *b as u8).collect())
+                .map_err(|_| io::Error::last_os_error())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
+    pub fn memory_regions(&self) -> Vec<winapi::um::winnt::MEMORY_BASIC_INFORMATION> {
+        let mut base = SCAN_START;
+        let mut regions = Vec::new();
+        let mut info = MaybeUninit::uninit();
+
+        while base < SCAN_END {
+            let written = unsafe {
+                winapi::um::memoryapi::VirtualQueryEx(
+                    self.handle.as_ptr(),
+                    base as *const _,
+                    info.as_mut_ptr(),
+                    mem::size_of::<winapi::um::winnt::MEMORY_BASIC_INFORMATION>(),
+                )
+            };
+            if written == 0 {
+                break;
+            }
+            let info = unsafe { info.assume_init() };
+            base = info.BaseAddress as usize + info.RegionSize;
+            regions.push(info);
+        }
+
+        regions
+    }
+
+    pub fn read<T>(&self, addr: usize) -> io::Result<T> {
+        let mut result = MaybeUninit::uninit();
+        let mut read = 0usize;
+
+        if unsafe {
+            winapi::um::memoryapi::ReadProcessMemory(
+                self.handle.as_ptr(),
+                addr as *const _,
+                &mut result as *mut _ as _,
+                mem::size_of::<T>(),
+                &mut read,
+            )
+        } == FALSE
+        {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(unsafe { result.assume_init() })
+        }
+    }
+
+    pub fn deref<T>(&self, map: &PtrMap) -> io::Result<T> {
+        let base = map
+            .offsets
+            .iter()
+            .take(map.offsets.len() - 1)
+            .fold(self.base_addr().map(|b| b as usize), |base, offset| {
+                self.read::<usize>(base? + offset)
+            })?;
+
+        self.read(base + map.offsets[map.offsets.len() - 1])
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        unsafe { winapi::um::handleapi::CloseHandle(self.handle.as_ptr()) };
+    }
+}
+
 pub fn kill_network(pid: u32) -> Result<usize, u32> {
     unsafe {
         let start = std::time::Instant::now();
 
         let mut size = 0;
         GetExtendedTcpTable(
-            std::ptr::null_mut(),
+            ptr::null_mut(),
             &mut size,
             0,
             AF_INET as u32,
@@ -133,67 +310,5 @@ pub fn kill_network(pid: u32) -> Result<usize, u32> {
             eprintln!("logout success: took {:?} for pid {}", start.elapsed(), pid);
         }
         Ok(ok)
-    }
-}
-
-pub fn get_proc_name(pid: u32) -> Option<String> {
-    unsafe {
-        let process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid);
-        if !process.is_null() {
-            let mut module = MaybeUninit::uninit();
-            let mut buffer = Vec::with_capacity(64);
-            let mut needed = 0;
-            if EnumProcessModules(
-                process,
-                module.as_mut_ptr(),
-                size_of::<HMODULE>() as u32,
-                &mut needed,
-            ) != 0
-            {
-                let length = GetModuleBaseNameA(
-                    process,
-                    module.assume_init(),
-                    buffer.as_mut_ptr(),
-                    buffer.capacity() as u32,
-                );
-                if length != 0 {
-                    buffer.set_len(length as usize);
-                    if let Ok(value) = String::from_utf8(buffer.iter().map(|b| *b as u8).collect())
-                    {
-                        CloseHandle(process);
-                        return Some(value);
-                    }
-                }
-            }
-        }
-        CloseHandle(process);
-        None
-    }
-}
-
-pub fn find_proc(starts_with: &str) -> Option<u32> {
-    unsafe {
-        let mut needed = 0;
-        let mut pids = Vec::<DWORD>::with_capacity(1024);
-        if EnumProcesses(
-            pids.as_mut_ptr(),
-            (pids.capacity() * size_of::<DWORD>()) as u32,
-            &mut needed,
-        ) == 0
-        {
-            return None;
-        }
-
-        for i in 0..(needed as usize / size_of::<DWORD>()).min(pids.capacity()) {
-            let pid = *pids.get_unchecked(i);
-            if pid != 0 {
-                if let Some(name) = get_proc_name(pid) {
-                    if name.starts_with(starts_with) {
-                        return Some(pid);
-                    }
-                }
-            }
-        }
-        None
     }
 }
