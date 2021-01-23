@@ -1,4 +1,5 @@
-use crate::{globals, win};
+use crate::{win};
+use win::screen::{Screen, Screenshot};
 
 // Measured in a 1920x1080 screen, life and mana fit in a 205px box.
 // The bottom right corners are (16, 2) for life and (1704, 2) for mana.
@@ -48,6 +49,7 @@ const DECO_Y1: f64 = 1.0 - (44.0 / 1080.0);
 const ES_COLOR_THRESHOLD_SQ: i32 = 40 * 40;
 
 pub trait Checker {
+    fn refresh(&mut self) -> Result<(), &'static str>;
     fn can_check(&self) -> bool;
     fn life_below(&self, percent: f64) -> bool;
     fn es_below(&self, percent: f64) -> bool;
@@ -55,8 +57,9 @@ pub trait Checker {
 }
 
 pub struct ScreenChecker {
+    screen: Screen,
     // Somewhat wasteful, but we don't know the precise points a precondition might ask, so...
-    orig_colors: win::screen::Screenshot,
+    orig_colors: Screenshot,
     decorations: [(u8, u8, u8); 2],
 }
 
@@ -68,9 +71,10 @@ pub enum PreCondition {
 }
 
 impl ScreenChecker {
-    pub fn new() -> Self {
-        let orig_colors = globals::last_screenshot().clone();
+    pub fn new(screen: Screen) -> Self {
+        let orig_colors = screen.screenshot().clone();
         Self {
+            screen,
             decorations: [
                 orig_colors.color(DECO_X0, DECO_Y0),
                 orig_colors.color(DECO_X1, DECO_Y1),
@@ -81,16 +85,21 @@ impl ScreenChecker {
 }
 
 impl Checker for ScreenChecker {
+    fn refresh(&mut self) -> Result<(), &'static str> {
+        self.screen.refresh()
+    }
+
     fn can_check(&self) -> bool {
-        self.decorations[0] == globals::get_cached_color(DECO_X0, DECO_Y0)
-            && self.decorations[1] == globals::get_cached_color(DECO_X1, DECO_Y1)
+        let screenshot = self.screen.screenshot();
+        self.decorations[0] == screenshot.color(DECO_X0, DECO_Y0)
+            && self.decorations[1] == screenshot.color(DECO_X1, DECO_Y1)
     }
 
     fn life_below(&self, percent: f64) -> bool {
         let x = LIFE_CX;
         let y = LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent);
 
-        globals::get_cached_color(x, y) != self.orig_colors.color(x, y)
+        self.screen.screenshot().color(x, y) != self.orig_colors.color(x, y)
     }
 
     fn es_below(&self, percent: f64) -> bool {
@@ -104,7 +113,7 @@ impl Checker for ScreenChecker {
         // Only ES needs a threshold because life can be reserved. The colors of everything else
         // must match exactly. It is risky to use the threshold anywhere else because the ground
         // may be close enough (e.g. mana).
-        let rgb = globals::get_cached_color(x, y);
+        let rgb = self.screen.screenshot().color(x, y);
         let last_rgb = self.orig_colors.color(x, y);
         (last_rgb.0 as i32 - rgb.0 as i32).pow(2)
             + (last_rgb.1 as i32 - rgb.1 as i32).pow(2)
@@ -115,7 +124,7 @@ impl Checker for ScreenChecker {
     fn mana_below(&self, percent: f64) -> bool {
         let x = MANA_CX;
         let y = MANA_CY + MANA_RY * 2.0 * (0.5 - percent);
-        globals::get_cached_color(x, y) != self.orig_colors.color(x, y)
+        self.screen.screenshot().color(x, y) != self.orig_colors.color(x, y)
     }
 }
 

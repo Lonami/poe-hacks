@@ -36,7 +36,7 @@ struct Action {
 }
 
 pub struct ActionSet {
-    checker: ScreenChecker,
+    pub checker: ScreenChecker,
     actions: Vec<Action>,
 }
 
@@ -224,8 +224,9 @@ impl Action {
 }
 
 impl ActionSet {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, &'static str> {
-        let checker = ScreenChecker::new();
+    pub fn from_file<P: AsRef<Path>>(path: P, mut screen: rshacks::win::screen::Screen) -> Result<Self, &'static str> {
+        screen.refresh()?;
+        let checker = ScreenChecker::new(screen);
 
         let actions: Vec<Action> = match File::open(path) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {

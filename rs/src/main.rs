@@ -2,8 +2,8 @@ mod action;
 mod https;
 mod utils;
 
-use crate::action::ActionSet;
-use rshacks::{globals, win};
+use crate::action::{ActionSet, Checker};
+use rshacks::{win};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -14,15 +14,8 @@ const DELAY: Duration = Duration::from_millis(10);
 const TOO_LONG: Duration = Duration::from_millis(100);
 
 fn main() {
-    globals::new_screen();
-    if win::screen::color(0, 0).is_err() {
-        eprintln!("cannot get color from screen");
-        return;
-    }
-    if win::screen::register_window_class().is_err() {
-        eprintln!("failed to register window class for tooltips");
-        return;
-    }
+    let screen = win::screen::Screen::new().expect("failed to open screen");
+    win::screen::register_window_class().expect("failed to register window class for tooltips");
 
     eprintln!("waiting for right click...");
     while !win::keyboard::is_down(0x02) {
@@ -36,17 +29,8 @@ fn main() {
     let _program = args.next();
     let file = args.next().unwrap_or_else(|| "poe.key".into());
 
-    globals::refresh_screen().expect("failed to refresh screen");
-    let mut actions = match ActionSet::from_file(&file) {
-        Ok(value) => {
-            eprintln!("loaded action set from '{}'", file);
-            value
-        }
-        Err(message) => {
-            eprintln!("failed to load action set from '{}': {}", file, message);
-            return;
-        }
-    };
+    let mut actions = ActionSet::from_file(&file, screen).expect(&format!("failed to load action set from '{}'", file));
+    eprintln!("loaded action set from '{}'", file);
 
     eprintln!("loaded {}", actions);
     println!("poe-hacks is now running");
@@ -61,7 +45,7 @@ fn main() {
         // But if we don't sleep at all we use too much CPU.
         // 30ms is still better than 16ms **per point** we had with `GetPixel` anyway.
         sleep(DELAY);
-        match globals::refresh_screen() {
+        match actions.checker.refresh() {
             Ok(_) => actions.check_all(),
             Err(_) => eprintln!("warning: failed to refresh screen"),
         }

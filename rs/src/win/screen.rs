@@ -1,7 +1,4 @@
 #![cfg(windows)]
-
-use crate::globals;
-
 use std::io::Error;
 use std::mem::{self, MaybeUninit};
 use std::ptr;
@@ -82,10 +79,10 @@ impl Screen {
         // This makes the code highly specialised for that one use case, and won't work beyond that.
         let height = height - offset_y;
 
-        let dc = unsafe { GetDC(ptr::null_mut()) };
-        if dc.is_null() {
-            return Err("failed to get root dc");
-        }
+        let dc = match get_desktop_dc() {
+            Some(dc) => dc,
+            None => return Err("failed to get root dc"),
+        };
         let dc_mem = unsafe { CreateCompatibleDC(ptr::null_mut()) };
         if dc_mem.is_null() {
             return Err("failed to create compatible root dc");
@@ -200,6 +197,23 @@ impl Drop for WindowDC {
     }
 }
 
+static mut DESKTOP_DC: HDC = ptr::null_mut();
+
+fn get_desktop_dc() -> Option<HDC> {
+    // WARNING: NOT THREAD SAFE, BUT THE PROGRAM DOESN'T USE THREADS FOR NOW
+    unsafe {
+        if DESKTOP_DC.is_null() {
+            DESKTOP_DC = GetDC(ptr::null_mut());
+        }
+        if DESKTOP_DC.is_null() {
+            None
+        } else {
+            // We never release this, but it's fine because it lives for as long as the program does.
+            Some(DESKTOP_DC)
+        }
+    }
+}
+
 /// Gets the primary screen's size as `(width, height)`.
 ///
 /// # References
@@ -225,7 +239,7 @@ pub fn size() -> Result<(usize, usize), Error> {
 /// https://docs.microsoft.com/en-us/windows/desktop/api/wingdi/nf-wingdi-getpixel
 pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), &'static str> {
     unsafe {
-        if let Some(dc) = globals::get_desktop_dc() {
+        if let Some(dc) = get_desktop_dc() {
             let color = GetPixel(dc, x as i32, y as i32);
             if color != CLR_INVALID {
                 Ok((

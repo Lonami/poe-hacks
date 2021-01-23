@@ -1,9 +1,10 @@
-use crate::{globals, https, win};
+use crate::{https, win};
 use std::thread::sleep;
 use std::time::Duration;
 use winapi::um::winuser::{VK_HOME, VK_RETURN, VK_RIGHT};
 
 // Where to click to enable/disable downscaling
+/*
 const PARTY_X: f64 = 350.0 / 1920.0;
 const PARTY_Y: f64 = 185.0 / 1080.0;
 
@@ -11,6 +12,7 @@ const DOWNSCALING_SELECT_X: f64 = 500.0 / 1920.0;
 const DOWNSCALING_SELECT_Y: f64 = 800.0 / 1080.0;
 const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
 const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
+*/
 
 const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
@@ -112,8 +114,10 @@ impl PostCondition {
                 win::keyboard::ctrl_press(VK_RETURN as u16);
                 Ok(())
             }
-            Self::Downscaling { enable } => {
-                let (width, height) = globals::get_screen_size();
+            Self::Downscaling { enable: _ } => {
+                todo!()
+                /*
+                let (width, height) = ...;
                 let rel_click = |x, y| -> Result<(), &'static str> {
                     win::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
                         .map_err(|_| "failed to move mouse")?;
@@ -141,8 +145,8 @@ impl PostCondition {
 
                 win::mouse::set(old_x, old_y)
                     .map_err(|_| "failed to restore original mouse pos")?;
-
                 Ok(())
+                */
             }
         }
     }
