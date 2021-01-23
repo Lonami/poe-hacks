@@ -1,4 +1,4 @@
-use crate::{https, win};
+use crate::{https, utils, win};
 use std::thread::sleep;
 use std::time::Duration;
 use winapi::um::winuser::{VK_HOME, VK_RETURN, VK_RIGHT};
@@ -14,7 +14,6 @@ const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
 const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
 */
 
-const POE_EXE: &'static str = "PathOfExile";
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(PartialEq)]
@@ -35,7 +34,7 @@ impl PostCondition {
                 win::keyboard::press(*vk);
                 Ok(())
             }
-            Self::Disconnect => match win::proc::Process::open_by_name(POE_EXE) {
+            Self::Disconnect => match utils::open_poe() {
                 None => Err("could not find poe running"),
                 Some(proc) => match win::proc::kill_network(proc.pid) {
                     Err(_) => Err("failed to kill poe network"),

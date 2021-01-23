@@ -1,31 +1,10 @@
-use super::{
-    Checker, PostCondition, PreCondition, ScreenChecker, LIFE_PERCENT_UNSAFE, MANA_PERCENT_UNSAFE,
-};
+use super::{Checker, PostCondition, PreCondition, LIFE_PERCENT_UNSAFE, MANA_PERCENT_UNSAFE};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::time::{Duration, Instant};
-
-// In-memory structures
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct Health {
-    hp: i32,
-    max_hp: i32,
-    unreserved_hp: i32,
-    es: i32,
-    max_es: i32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct Mana {
-    mana: i32,
-    max_mana: i32,
-    unreserved_mana: i32,
-}
 
 struct Action {
     pre: PreCondition,
@@ -36,7 +15,7 @@ struct Action {
 }
 
 pub struct ActionSet {
-    pub checker: ScreenChecker,
+    pub checker: Box<dyn Checker>,
     actions: Vec<Action>,
 }
 
@@ -205,7 +184,7 @@ impl Action {
         }))
     }
 
-    fn check(&self, checker: &ScreenChecker) -> bool {
+    fn check(&self, checker: &Box<dyn Checker>) -> bool {
         self.pre.is_valid(checker) && self.last_trigger.elapsed() > self.delay
     }
 
@@ -224,10 +203,10 @@ impl Action {
 }
 
 impl ActionSet {
-    pub fn from_file<P: AsRef<Path>>(path: P, mut screen: rshacks::win::screen::Screen) -> Result<Self, &'static str> {
-        screen.refresh()?;
-        let checker = ScreenChecker::new(screen);
-
+    pub fn from_file<P: AsRef<Path>>(
+        path: P,
+        checker: Box<dyn Checker>,
+    ) -> Result<Self, &'static str> {
         let actions: Vec<Action> = match File::open(path) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 return Err("poe key file not found");

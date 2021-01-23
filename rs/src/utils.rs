@@ -1,6 +1,8 @@
 use crate::win;
 use winapi::um::winuser::VK_F1;
 
+const POE_EXE: &'static str = "PathOfExile";
+
 pub fn parse_percentage(word: &str) -> Result<f64, &'static str> {
     match word.trim_end_matches('%').parse::<isize>() {
         Ok(value) => {
@@ -31,4 +33,8 @@ pub fn parse_vk(word: &str) -> Result<u16, &'static str> {
     } else {
         Ok(win::keyboard::get_vk(word.as_bytes()[0]))
     }
+}
+
+pub fn open_poe() -> Option<win::proc::Process> {
+    win::proc::Process::open_by_name(POE_EXE)
 }

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io;
 use std::mem::{self, MaybeUninit};
 use std::num::ParseIntError;
@@ -84,6 +85,16 @@ extern "system" {
 // Do the same for mana.
 pub struct PtrMap {
     offsets: Vec<usize>,
+}
+
+impl fmt::Debug for PtrMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[base")?;
+        for offset in self.offsets.iter() {
+            write!(f, " -> {:x}", offset)?;
+        }
+        f.write_str("]")
+    }
 }
 
 impl FromStr for PtrMap {
