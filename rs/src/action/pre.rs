@@ -207,6 +207,14 @@ impl MemoryChecker {
 
 impl Checker for MemoryChecker {
     fn refresh(&mut self) -> Result<(), &'static str> {
+        if self.pid != 0 {
+            match Process::open(self.pid) {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    self.pid = 0;
+                }
+            }
+        }
         if let Some(proc) = utils::open_poe() {
             self.pid = proc.pid;
             Ok(())
@@ -216,7 +224,7 @@ impl Checker for MemoryChecker {
     }
 
     fn can_check(&self) -> bool {
-        true
+        self.pid != 0
     }
 
     fn life_below(&self, percent: f64) -> bool {
