@@ -1,4 +1,4 @@
-use crate::input::screen::Screen;
+use crate::win::screen::Screen;
 use winapi::shared::windef::HDC;
 use winapi::um::winuser::GetDC;
 

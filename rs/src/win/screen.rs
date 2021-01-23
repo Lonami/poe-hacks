@@ -314,7 +314,7 @@ pub fn create_tooltip(text: &str) -> Result<Tooltip, DWORD> {
         }
 
         // Update position to be below mouse and of the right size
-        let mouse = crate::input::mouse::get().map_err(|_| GetLastError())?;
+        let mouse = crate::win::mouse::get().map_err(|_| GetLastError())?;
         let x = if (mouse.0 as i32) < rect.right {
             mouse.0 as i32 + 15
         } else {

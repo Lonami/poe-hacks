@@ -1,6 +1,6 @@
 use crate::https;
 
-use rshacks::{globals, input, proc};
+use rshacks::{globals, win};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -236,7 +236,7 @@ fn parse_vk(word: &str) -> Result<u16, &'static str> {
             Err("cannot map more than one character to a virtual key code unless it's a fn key")
         }
     } else {
-        Ok(input::keyboard::get_vk(word.as_bytes()[0]))
+        Ok(win::keyboard::get_vk(word.as_bytes()[0]))
     }
 }
 
@@ -244,7 +244,7 @@ impl PreCondition {
     fn is_valid(&self) -> bool {
         match self {
             Self::ScreenChange { point } => point.different(),
-            Self::KeyPress { vk } => input::keyboard::is_down(*vk),
+            Self::KeyPress { vk } => win::keyboard::is_down(*vk),
         }
     }
 }
@@ -253,12 +253,12 @@ impl PostCondition {
     fn act(&self, width: usize, height: usize) -> Result<(), &'static str> {
         match self {
             Self::PressKey { vk } => {
-                input::keyboard::press(*vk);
+                win::keyboard::press(*vk);
                 Ok(())
             }
-            Self::Disconnect => match proc::Process::open_by_name(POE_EXE) {
+            Self::Disconnect => match win::proc::Process::open_by_name(POE_EXE) {
                 None => Err("could not find poe running"),
-                Some(proc) => match proc::kill_network(proc.pid) {
+                Some(proc) => match win::proc::kill_network(proc.pid) {
                     Err(_) => Err("failed to kill poe network"),
                     Ok(n) => {
                         if n > 0 {
@@ -269,19 +269,19 @@ impl PostCondition {
                 },
             },
             Self::Type { string } => {
-                input::keyboard::press(VK_RETURN as u16);
-                input::keyboard::type_string(&string);
-                input::keyboard::press(VK_RETURN as u16);
+                win::keyboard::press(VK_RETURN as u16);
+                win::keyboard::type_string(&string);
+                win::keyboard::press(VK_RETURN as u16);
                 Ok(())
             }
             Self::ShowPrice => {
                 // Press Ctrl+C
                 sleep(Duration::from_millis(200));
-                input::keyboard::ctrl_press(b'C' as u16);
+                win::keyboard::ctrl_press(b'C' as u16);
                 sleep(Duration::from_millis(200));
 
                 // Extract name from clipboard
-                let clipboard = input::clipboard::get()?;
+                let clipboard = win::clipboard::get()?;
                 let name = {
                     let mut it = clipboard.split("\r\n");
                     it.next();
@@ -294,7 +294,7 @@ impl PostCondition {
                 // Search for this item in poe.trade
                 let prices = {
                     let _tooltip =
-                        input::screen::create_tooltip(&format!("Checking price for {}...", name))
+                        win::screen::create_tooltip(&format!("Checking price for {}...", name))
                             .map_err(|_| "failed to show loading tooltip")?;
 
                     https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?
@@ -306,14 +306,14 @@ impl PostCondition {
 
                 // Show a tooltip until the mouse is moved
                 {
-                    let _tooltip = input::screen::create_tooltip(&format!(
+                    let _tooltip = win::screen::create_tooltip(&format!(
                         "{} is worth {:.1}c",
                         name, avg_price
                     ))
                     .map_err(|_| "failed to show price tooltip")?;
 
-                    let mouse = input::mouse::get().map_err(|_| "failed to detect mouse")?;
-                    while mouse == input::mouse::get().map_err(|_| "failed to detect mouse")? {
+                    let mouse = win::mouse::get().map_err(|_| "failed to detect mouse")?;
+                    while mouse == win::mouse::get().map_err(|_| "failed to detect mouse")? {
                         sleep(Duration::from_millis(10));
                     }
                 }
@@ -321,27 +321,27 @@ impl PostCondition {
                 Ok(())
             }
             Self::InviteLast => {
-                input::keyboard::ctrl_press(VK_RETURN as u16);
-                input::keyboard::press(VK_HOME as u16);
-                input::keyboard::shift_press(VK_RIGHT as u16);
-                input::keyboard::type_string("/invite ");
-                input::keyboard::ctrl_press(VK_RETURN as u16);
+                win::keyboard::ctrl_press(VK_RETURN as u16);
+                win::keyboard::press(VK_HOME as u16);
+                win::keyboard::shift_press(VK_RIGHT as u16);
+                win::keyboard::type_string("/invite ");
+                win::keyboard::ctrl_press(VK_RETURN as u16);
                 Ok(())
             }
             Self::Destroy => {
-                input::mouse::click(input::mouse::Button::Left);
-                input::keyboard::ctrl_press(VK_RETURN as u16);
-                input::keyboard::type_string("/destroy");
-                input::keyboard::ctrl_press(VK_RETURN as u16);
+                win::mouse::click(win::mouse::Button::Left);
+                win::keyboard::ctrl_press(VK_RETURN as u16);
+                win::keyboard::type_string("/destroy");
+                win::keyboard::ctrl_press(VK_RETURN as u16);
                 Ok(())
             }
             Self::Downscaling { enable } => {
                 let rel_click = |x, y| -> Result<(), &'static str> {
-                    input::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
+                    win::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
                         .map_err(|_| "failed to move mouse")?;
 
                     sleep(Duration::from_millis(64));
-                    input::mouse::click(input::mouse::Button::Left);
+                    win::mouse::click(win::mouse::Button::Left);
                     Ok(())
                 };
 
@@ -352,16 +352,16 @@ impl PostCondition {
                 };
 
                 let (old_x, old_y) =
-                    input::mouse::get().map_err(|_| "failed to get original mouse pos")?;
+                    win::mouse::get().map_err(|_| "failed to get original mouse pos")?;
 
-                input::keyboard::press(b'S' as u16);
+                win::keyboard::press(b'S' as u16);
                 sleep(Duration::from_millis(128));
                 rel_click(PARTY_X, PARTY_Y)?;
                 rel_click(DOWNSCALING_SELECT_X, DOWNSCALING_SELECT_Y)?;
                 rel_click(DOWNSCALING_SELECT_X, downscaling_select_y)?;
-                input::keyboard::press(b'S' as u16);
+                win::keyboard::press(b'S' as u16);
 
-                input::mouse::set(old_x, old_y)
+                win::mouse::set(old_x, old_y)
                     .map_err(|_| "failed to restore original mouse pos")?;
 
                 Ok(())
@@ -548,7 +548,7 @@ impl Action {
 
 impl ActionSet {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, &'static str> {
-        let (width, height) = match input::screen::size() {
+        let (width, height) = match win::screen::size() {
             Ok(value) => value,
             Err(_) => return Err("failed to get screen size"),
         };

@@ -2,7 +2,7 @@ mod action;
 mod https;
 
 use crate::action::ActionSet;
-use rshacks::{globals, input};
+use rshacks::{globals, win};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -14,20 +14,20 @@ const TOO_LONG: Duration = Duration::from_millis(100);
 
 fn main() {
     globals::new_screen();
-    if input::screen::color(0, 0).is_err() {
+    if win::screen::color(0, 0).is_err() {
         eprintln!("cannot get color from screen");
         return;
     }
-    if input::screen::register_window_class().is_err() {
+    if win::screen::register_window_class().is_err() {
         eprintln!("failed to register window class for tooltips");
         return;
     }
 
     eprintln!("waiting for right click...");
-    while !input::keyboard::is_down(0x02) {
+    while !win::keyboard::is_down(0x02) {
         sleep(DELAY);
     }
-    while input::keyboard::is_down(0x02) {
+    while win::keyboard::is_down(0x02) {
         sleep(DELAY);
     }
 

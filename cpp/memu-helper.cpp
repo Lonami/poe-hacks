@@ -45,14 +45,14 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 // this runs the program forever listening for input
 int main() {
     setup();
-    input::setcb(oninput);
+    win::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
     printf("size: %d x %d\n", width, height);
     printf("program now running\n");
     while (running) {
         Sleep(10);
-        input::step();
+        win::step();
     }    
 
     printf("graceful shutdown\n");

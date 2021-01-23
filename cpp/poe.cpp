@@ -140,11 +140,11 @@ BOOL WINAPI oninterrupt(_In_ DWORD type) {
 
 int main() {
     setup();
-    input::setcb(oninput);
+    win::setcb(oninput);
     SetConsoleCtrlHandler(oninterrupt, true);
 
     printf("waiting for right click...\n");
-    input::wait(VK_RBUTTON);
+    win::wait(VK_RBUTTON);
 
     if (settings::load()) {
         printf("settings loaded successfully\n");
@@ -155,7 +155,7 @@ int main() {
     while (running) {
         Sleep(10);
 
-        input::step();
+        win::step();
         if (!settings::decor.check()) {
             continue; // don't check anything if decoration is not there
         }
