@@ -56,6 +56,7 @@ fn main() {
     let _program = args.next();
     let file = args.next().unwrap_or_else(|| "poe.key".into());
 
+    // TODO make an audible noise or show a window if this fails to let the user know that poehacks is NOT running
     let mut actions = ActionSet::from_file(&file, checker)
         .expect(&format!("failed to load action set from '{}'", file));
     eprintln!("loaded action set from '{}'", file);
