@@ -1,4 +1,4 @@
-use crate::{https, win};
+use crate::{globals, https, win};
 use std::thread::sleep;
 use std::time::Duration;
 use winapi::um::winuser::{VK_HOME, VK_RETURN, VK_RIGHT};
@@ -27,7 +27,7 @@ pub enum PostCondition {
 }
 
 impl PostCondition {
-    pub fn act(&self, width: usize, height: usize) -> Result<(), &'static str> {
+    pub fn act(&self) -> Result<(), &'static str> {
         match self {
             Self::PressKey { vk } => {
                 win::keyboard::press(*vk);
@@ -113,6 +113,7 @@ impl PostCondition {
                 Ok(())
             }
             Self::Downscaling { enable } => {
+                let (width, height) = globals::get_screen_size();
                 let rel_click = |x, y| -> Result<(), &'static str> {
                     win::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
                         .map_err(|_| "failed to move mouse")?;

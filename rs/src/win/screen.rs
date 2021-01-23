@@ -32,15 +32,44 @@ struct WindowDC(HDC);
 
 const ORB_START_Y: f64 = 0.8;
 
+#[derive(Clone)]
+pub struct Screenshot {
+    pub width: usize,
+    pub height: usize,
+    colors: Box<[u8]>,
+    offset_y: usize,
+}
+
 pub struct Screen {
     dc: HDC,
     dc_mem: HDC,
     bmp: HGDIOBJ,
     bmp_info: BITMAPINFO,
-    width: usize,
-    height: usize,
-    colors: Box<[u8]>,
-    offset_y: usize,
+    screenshot: Screenshot,
+}
+
+impl Screenshot {
+    fn new(width: usize, height: usize, offset_y: usize) -> Self {
+        Self {
+            width,
+            height,
+            colors: vec![0; height * width * 3].into_boxed_slice(),
+            offset_y,
+        }
+    }
+
+    pub fn color(&self, x: f64, y: f64) -> (u8, u8, u8) {
+        let x = (self.width as f64 * x) as usize;
+        let y = ((self.height + self.offset_y) as f64 * y) as usize;
+
+        // Will be out of bounds when selecting colors above the orbs or out of screen
+        let i = ((y - self.offset_y) * self.width + x) * 3;
+        (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
+    }
+
+    pub fn update_from(&mut self, other: &Screenshot) {
+        self.colors.copy_from_slice(&other.colors);
+    }
 }
 
 impl Screen {
@@ -80,17 +109,14 @@ impl Screen {
         bmp_info.bmiHeader.biHeight = -(height as i32); // a top-down DIB is specified by setting the height to a negative number
         bmp_info.bmiHeader.biWidth = width as i32;
         bmp_info.bmiHeader.biSize = mem::size_of::<BITMAPINFO>() as u32;
-        let colors = vec![0; height * width * 3];
+        let screenshot = Screenshot::new(width, height, offset_y);
 
         Ok(Self {
             dc,
             dc_mem,
             bmp,
             bmp_info,
-            width,
-            height,
-            colors: colors.into_boxed_slice(),
-            offset_y,
+            screenshot,
         })
     }
 
@@ -100,11 +126,11 @@ impl Screen {
                 self.dc_mem,
                 0,
                 0,
-                self.width as i32,
-                self.height as i32,
+                self.screenshot.width as i32,
+                self.screenshot.height as i32,
                 self.dc,
                 0,
-                self.offset_y as i32,
+                self.screenshot.offset_y as i32,
                 SRCCOPY,
             )
         };
@@ -116,8 +142,8 @@ impl Screen {
                 self.dc_mem,
                 self.bmp as HBITMAP,
                 0,
-                self.height as u32,
-                self.colors.as_mut_ptr() as LPVOID,
+                self.screenshot.height as u32,
+                self.screenshot.colors.as_mut_ptr() as LPVOID,
                 &mut self.bmp_info,
                 DIB_RGB_COLORS,
             )
@@ -131,10 +157,8 @@ impl Screen {
         Ok(())
     }
 
-    pub fn color(&self, x: usize, y: usize) -> (u8, u8, u8) {
-        // Will be out of bounds when selecting colors above the orbs or out of screen
-        let i = ((y - self.offset_y) * self.width + x) * 3;
-        (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
+    pub fn screenshot(&self) -> &Screenshot {
+        &self.screenshot
     }
 }
 

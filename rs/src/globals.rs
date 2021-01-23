@@ -1,4 +1,4 @@
-use crate::win::screen::Screen;
+use crate::win::screen::{Screen, Screenshot};
 use winapi::shared::windef::HDC;
 use winapi::um::winuser::GetDC;
 
@@ -30,6 +30,15 @@ pub fn refresh_screen() -> Result<(), &'static str> {
     unsafe { DESKTOP.as_mut().unwrap().refresh() }
 }
 
-pub fn get_cached_color(x: usize, y: usize) -> (u8, u8, u8) {
-    unsafe { DESKTOP.as_ref().unwrap().color(x, y) }
+pub fn last_screenshot<'a>() -> &'a Screenshot {
+    unsafe { DESKTOP.as_ref().unwrap().screenshot() }
+}
+
+pub fn get_cached_color(x: f64, y: f64) -> (u8, u8, u8) {
+    last_screenshot().color(x, y)
+}
+
+pub fn get_screen_size() -> (usize, usize) {
+    let last = last_screenshot();
+    (last.width, last.height)
 }

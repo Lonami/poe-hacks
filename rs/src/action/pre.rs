@@ -9,17 +9,30 @@ use crate::{globals, win};
 // which is why we do `1.0 - (...)` for the Y coordinates.
 //
 // The unsafe zone contains decoration so points below it may not work.
+//
+// To obtain the `PERCENT_UNSAFE`, consider:
+//     y = CY + RY * 2.0 * (0.5 - percent)
+//     y > Y_UNSAFE
+// Then:
+//     CY + RY * 2.0 * (0.5 - percent) = Y_UNSAFE
+//     CY + 2RY * (0.5 - percent) = Y_UNSAFE
+//     CY + RY - 2RY * percent = Y_UNSAFE
+//     -2RY * percent = Y_UNSAFE - CY - RY
+//     2RY * percent = CY + RY - Y_UNSAFE
+//     percent = (CY + RY - Y_UNSAFE) / 2RY
 const LIFE_CX: f64 = (16.0 + 100.0) / 1920.0;
 const LIFE_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
 const LIFE_RX: f64 = 100.0 / 1920.0;
 const LIFE_RY: f64 = 100.0 / 1080.0;
 const LIFE_Y_UNSAFE: f64 = 1.0 - (26.0 / 1080.0);
+pub const LIFE_PERCENT_UNSAFE: f64 = (LIFE_CY + LIFE_RY - LIFE_Y_UNSAFE) / (2.0 * LIFE_RY);
 
 const MANA_CX: f64 = (1704.0 + 100.0) / 1920.0;
 const MANA_CY: f64 = 1.0 - ((2.0 + 100.0) / 1080.0);
 //const MANA_RX: f64 = 100.0 / 1920.0;
 const MANA_RY: f64 = 100.0 / 1080.0;
 const MANA_Y_UNSAFE: f64 = 1.0 - (16.0 / 1080.0);
+pub const MANA_PERCENT_UNSAFE: f64 = (MANA_CY + MANA_RY - MANA_Y_UNSAFE) / (2.0 * MANA_RY);
 
 // There are plenty of places where we can look for decorations,
 // but we just pick a few around the bottom-left side of the screen.
@@ -34,116 +47,84 @@ const DECO_Y1: f64 = 1.0 - (44.0 / 1080.0);
 // going in and out of town (having no life works fine too).
 const ES_COLOR_THRESHOLD_SQ: i32 = 40 * 40;
 
-#[derive(Clone, Debug)]
-pub struct ScreenPoint {
-    x: usize,
-    y: usize,
-    rgb: (u8, u8, u8),
-    distance: i32,
+pub trait Checker {
+    fn can_check(&self) -> bool;
+    fn life_below(&self, percent: f64) -> bool;
+    fn es_below(&self, percent: f64) -> bool;
+    fn mana_below(&self, percent: f64) -> bool;
+}
+
+pub struct ScreenChecker {
+    // Somewhat wasteful, but we don't know the precise points a precondition might ask, so...
+    orig_colors: win::screen::Screenshot,
+    decorations: [(u8, u8, u8); 2],
 }
 
 pub enum PreCondition {
-    ScreenChange { point: ScreenPoint },
+    LifeBelow { percent: f64 },
+    EnergyBelow { percent: f64 },
+    ManaBelow { percent: f64 },
     KeyPress { vk: u16 },
 }
 
-impl ScreenPoint {
-    fn new(x: usize, y: usize) -> Self {
-        let rgb = globals::get_cached_color(x, y);
+impl ScreenChecker {
+    pub fn new() -> Self {
+        let orig_colors = globals::last_screenshot().clone();
         Self {
-            x,
-            y,
-            rgb,
-            distance: 1,
+            decorations: [
+                orig_colors.color(DECO_X0, DECO_Y0),
+                orig_colors.color(DECO_X1, DECO_Y1),
+            ],
+            orig_colors,
         }
     }
+}
 
-    pub fn new_life(percent: f64, width: usize, height: usize) -> Self {
+impl Checker for ScreenChecker {
+    fn can_check(&self) -> bool {
+        self.decorations[0] == globals::get_cached_color(DECO_X0, DECO_Y0)
+            && self.decorations[1] == globals::get_cached_color(DECO_X1, DECO_Y1)
+    }
+
+    fn life_below(&self, percent: f64) -> bool {
+        let x = LIFE_CX;
         let y = LIFE_CY + LIFE_RY * 2.0 * (0.5 - percent);
-        if y > LIFE_Y_UNSAFE {
-            eprintln!(
-                "\x07warning: the life percentage {}% is too low and may not work",
-                (percent * 100.0) as usize
-            );
-        }
-        Self::new(
-            (width as f64 * LIFE_CX) as usize,
-            (height as f64 * y) as usize,
-        )
+
+        globals::get_cached_color(x, y) != self.orig_colors.color(x, y)
     }
 
-    pub fn new_es(percent: f64, width: usize, height: usize) -> Self {
+    fn es_below(&self, percent: f64) -> bool {
         // x²/a² + y²/b² = 1
         // x = √(a² * (1 - y²/b²))
         let a = LIFE_RX;
         let b = LIFE_RY;
-        let y = b * 2.0 * (0.5 - percent);
-        let x = f64::sqrt(a.powi(2) * (1.0 - y.powi(2) / b.powi(2)));
+        let y = LIFE_CY + (b * 2.0 * (0.5 - percent));
+        let x = LIFE_CX + f64::sqrt(a.powi(2) * (1.0 - y.powi(2) / b.powi(2)));
 
-        let x = (width as f64 * (LIFE_CX + x)) as usize;
-        let y = (height as f64 * (LIFE_CY + y)) as usize;
-        let rgb = globals::get_cached_color(x, y);
         // Only ES needs a threshold because life can be reserved. The colors of everything else
         // must match exactly. It is risky to use the threshold anywhere else because the ground
         // may be close enough (e.g. mana).
-        Self {
-            x,
-            y,
-            rgb,
-            distance: ES_COLOR_THRESHOLD_SQ,
-        }
+        let rgb = globals::get_cached_color(x, y);
+        let last_rgb = self.orig_colors.color(x, y);
+        (last_rgb.0 as i32 - rgb.0 as i32).pow(2)
+            + (last_rgb.1 as i32 - rgb.1 as i32).pow(2)
+            + (last_rgb.2 as i32 - rgb.2 as i32).pow(2)
+            >= ES_COLOR_THRESHOLD_SQ
     }
 
-    pub fn new_mana(percent: f64, width: usize, height: usize) -> Self {
+    fn mana_below(&self, percent: f64) -> bool {
+        let x = MANA_CX;
         let y = MANA_CY + MANA_RY * 2.0 * (0.5 - percent);
-        if y > MANA_Y_UNSAFE {
-            eprintln!(
-                "\x07warning: the mana percentage {}% is too low and may not work",
-                (percent * 100.0) as usize
-            );
-        }
-        Self::new(
-            (width as f64 * MANA_CX) as usize,
-            (height as f64 * y) as usize,
-        )
-    }
-
-    pub fn new_deco1(width: usize, height: usize) -> Self {
-        Self::new(
-            (width as f64 * DECO_X0) as usize,
-            (height as f64 * DECO_Y0) as usize,
-        )
-    }
-
-    pub fn new_deco2(width: usize, height: usize) -> Self {
-        Self::new(
-            (width as f64 * DECO_X1) as usize,
-            (height as f64 * DECO_Y1) as usize,
-        )
-    }
-
-    pub fn changed(&self) -> bool {
-        let rgb = globals::get_cached_color(self.x, self.y);
-        self.rgb != rgb
-    }
-
-    fn different(&self) -> bool {
-        if self.distance == 1 {
-            self.changed()
-        } else {
-            let rgb = globals::get_cached_color(self.x, self.y);
-            (self.rgb.0 as i32 - rgb.0 as i32).pow(2)
-                + (self.rgb.1 as i32 - rgb.1 as i32).pow(2)
-                + (self.rgb.2 as i32 - rgb.2 as i32).pow(2)
-                >= self.distance
-        }
+        globals::get_cached_color(x, y) != self.orig_colors.color(x, y)
     }
 }
 
 impl PreCondition {
-    pub fn is_valid(&self) -> bool {
+    pub fn is_valid<C: Checker>(&self, checker: &C) -> bool {
         match self {
-            Self::ScreenChange { point } => point.different(),
+            Self::LifeBelow { percent } => checker.life_below(*percent),
+            Self::EnergyBelow { percent } => checker.es_below(*percent),
+            Self::ManaBelow { percent } => checker.mana_below(*percent),
             Self::KeyPress { vk } => win::keyboard::is_down(*vk),
         }
     }
