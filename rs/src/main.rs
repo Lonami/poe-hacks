@@ -33,7 +33,7 @@ fn main() {
                     create_screen_checker()
                 }
                 Err(err) => {
-                    panic!(format!("failed to read ptr.map file: {}", err));
+                    panic!("failed to read ptr.map file: {}", err);
                 }
                 Ok(checker) => Box::new(checker),
             }

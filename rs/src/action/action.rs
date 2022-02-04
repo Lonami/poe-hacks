@@ -43,7 +43,7 @@ impl Action {
             WaitPostRemaining,
 
             WaitDelayValue,
-        };
+        }
 
         let mut state = State::WaitKeyword;
         let line = line.to_lowercase();
