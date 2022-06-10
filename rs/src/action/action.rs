@@ -1,4 +1,4 @@
-use super::{Checker, PostCondition, PreCondition, LIFE_PERCENT_UNSAFE, MANA_PERCENT_UNSAFE};
+use super::{Checker, MemoryChecker, PostCondition, PreCondition};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
@@ -15,7 +15,7 @@ struct Action {
 }
 
 pub struct ActionSet {
-    pub checker: Box<dyn Checker>,
+    pub checker: MemoryChecker,
     actions: Vec<Action>,
 }
 
@@ -66,13 +66,6 @@ impl Action {
                 },
                 WaitLifeValue => {
                     let percent = utils::parse_percentage(word)?;
-                    if percent - 0.005 < LIFE_PERCENT_UNSAFE {
-                        eprintln!(
-                            "\x07warning: the life percentage {}% is too low and may not work",
-                            (percent * 100.0) as usize
-                        );
-                    }
-
                     pre = Some(PreCondition::LifeBelow { percent });
                     WaitKeyword
                 }
@@ -83,13 +76,6 @@ impl Action {
                 }
                 WaitManaValue => {
                     let percent = utils::parse_percentage(word)?;
-                    if percent - 0.005 < MANA_PERCENT_UNSAFE {
-                        eprintln!(
-                            "\x07warning: the mana percentage {}% is too low and may not work",
-                            (percent * 100.0) as usize
-                        );
-                    }
-
                     pre = Some(PreCondition::ManaBelow { percent });
                     WaitKeyword
                 }
@@ -184,7 +170,7 @@ impl Action {
         }))
     }
 
-    fn check(&self, checker: &Box<dyn Checker>) -> bool {
+    fn check(&self, checker: &MemoryChecker) -> bool {
         self.pre.is_valid(checker) && self.last_trigger.elapsed() > self.delay
     }
 
@@ -205,7 +191,7 @@ impl Action {
 impl ActionSet {
     pub fn from_file<P: AsRef<Path>>(
         path: P,
-        checker: Box<dyn Checker>,
+        checker: MemoryChecker,
     ) -> Result<Self, &'static str> {
         let actions: Vec<Action> = match File::open(path) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
