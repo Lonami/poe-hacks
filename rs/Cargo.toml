@@ -9,7 +9,7 @@ name = "rshacks"
 path = "src/lib.rs"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser", "wincon", "wincontypes", "winbase", "processenv", "ws2def", "winerror", "psapi", "handleapi", "commctrl"] }
+winapi = { version = "0.3", features = ["winuser", "wincon", "wincontypes", "winbase", "processenv", "ws2def", "winerror", "psapi", "handleapi", "commctrl", "memoryapi"] }
 
 [[bin]]
 name = "poe"
