@@ -45,7 +45,7 @@ fn run() {
             panic!("pointer .map file not found at: {}\n\nthe file must exist for the program to read the in-game ehp value", file.to_string_lossy());
         }
         Err(err) => {
-            panic!("failed to read ptr.map file: {}", err);
+            panic!("failed to initialize memory checker: {}", err);
         }
         Ok(checker) => checker,
     };

@@ -32,7 +32,7 @@ pub trait Checker {
 }
 
 pub struct MemoryChecker {
-    pid: u32,
+    process: Process,
     life_es_map: win::proc::PtrMap,
     mana_map: win::proc::PtrMap,
 }
@@ -65,27 +65,22 @@ impl MemoryChecker {
             .parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
+        let process = utils::open_poe().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotConnected, "could not find poe running")
+        })?;
+
         Ok(Self {
-            pid: 0,
+            process,
             life_es_map,
             mana_map,
         })
     }
 
     fn read<T>(&self, map: &PtrMap) -> Option<T> {
-        // TODO should we store the Process permanently?
-        // feels wasteful to open it every single time we query a point, but this also means it's open for
-        // the smallest amount of time possible, so poe shouldn't have much time to detect we're doing this?
-        match Process::open(self.pid) {
-            Ok(proc) => match proc.deref::<T>(map) {
-                Ok(t) => Some(t),
-                Err(err) => {
-                    eprintln!("failed to follow pointer map {:?}: {}", map, err);
-                    None
-                }
-            },
+        match self.process.deref::<T>(map) {
+            Ok(t) => Some(t),
             Err(err) => {
-                eprintln!("failed to open poe with pid {}: {}", self.pid, err);
+                eprintln!("failed to follow pointer map {:?}: {}", map, err);
                 None
             }
         }
@@ -94,16 +89,14 @@ impl MemoryChecker {
 
 impl Checker for MemoryChecker {
     fn refresh(&mut self) -> Result<(), &'static str> {
-        if self.pid != 0 {
-            match Process::open(self.pid) {
-                Ok(_) => return Ok(()),
-                Err(_) => {
-                    self.pid = 0;
-                }
-            }
-        }
-        if let Some(proc) = utils::open_poe() {
-            self.pid = proc.pid;
+        if self
+            .process
+            .running()
+            .expect("failed to check for process status")
+        {
+            Ok(())
+        } else if let Some(proc) = utils::open_poe() {
+            self.process = proc;
             Ok(())
         } else {
             Err("could not find poe running")
@@ -111,7 +104,7 @@ impl Checker for MemoryChecker {
     }
 
     fn can_check(&self) -> bool {
-        self.pid != 0
+        self.process.running().unwrap_or(false)
     }
 
     fn life_below(&self, percent: f64) -> bool {

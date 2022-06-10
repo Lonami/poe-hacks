@@ -166,6 +166,18 @@ impl Process {
         .ok_or(io::Error::last_os_error())
     }
 
+    pub fn running(&self) -> io::Result<bool> {
+        let mut exit_code = 0;
+        if unsafe {
+            winapi::um::processthreadsapi::GetExitCodeProcess(self.handle.as_ptr(), &mut exit_code)
+        } == FALSE
+        {
+            return Err(io::Error::last_os_error());
+        }
+
+        return Ok(exit_code == winapi::um::minwinbase::STILL_ACTIVE);
+    }
+
     pub fn base_addr(&self) -> io::Result<HMODULE> {
         let mut size = 0u32;
         let mut module = MaybeUninit::<HMODULE>::uninit();
