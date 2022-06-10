@@ -97,6 +97,16 @@ impl fmt::Debug for PtrMap {
     }
 }
 
+impl fmt::Display for PtrMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:08X}", self.offsets[0])?;
+        for offset in &self.offsets[1..] {
+            write!(f, ", 0x{:X}", offset)?;
+        }
+        Ok(())
+    }
+}
+
 impl FromStr for PtrMap {
     type Err = ParseIntError;
 
@@ -112,6 +122,12 @@ impl FromStr for PtrMap {
             })
             .collect::<Result<Vec<_>, _>>()
             .map(|offsets| Self { offsets })
+    }
+}
+
+impl PtrMap {
+    pub fn nudge_base(&mut self, delta: isize) {
+        self.offsets[0] = self.offsets[0].wrapping_add(delta as usize);
     }
 }
 
@@ -267,7 +283,7 @@ impl Process {
             .iter()
             .take(map.offsets.len() - 1)
             .fold(self.base_addr().map(|b| b as usize), |base, offset| {
-                self.read::<usize>(base? + offset)
+                self.read::<usize>(base?.wrapping_add(*offset))
             })?;
 
         self.read(base + map.offsets[map.offsets.len() - 1])

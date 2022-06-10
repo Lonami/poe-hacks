@@ -1,5 +1,5 @@
 use crate::{utils, win};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use win::proc::{Process, PtrMap};
@@ -7,20 +7,20 @@ use win::proc::{Process, PtrMap};
 // In-memory structures for the memory checker.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-struct Health {
-    hp: i32,
-    max_hp: i32,
-    unreserved_hp: i32,
-    es: i32,
-    max_es: i32,
+pub struct Health {
+    pub hp: i32,
+    pub max_hp: i32,
+    pub unreserved_hp: i32,
+    pub es: i32,
+    pub max_es: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-struct Mana {
-    mana: i32,
-    max_mana: i32,
-    unreserved_mana: i32,
+pub struct Mana {
+    pub mana: i32,
+    pub max_mana: i32,
+    pub unreserved_mana: i32,
 }
 
 pub trait Checker {
@@ -76,14 +76,37 @@ impl MemoryChecker {
         })
     }
 
+    pub fn save_ptr_map<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        fs::write(
+            path,
+            format!("{}\n{}\n", self.life_es_map, self.mana_map).as_bytes(),
+        )
+    }
+
     fn read<T>(&self, map: &PtrMap) -> Option<T> {
         match self.process.deref::<T>(map) {
             Ok(t) => Some(t),
-            Err(err) => {
-                eprintln!("failed to follow pointer map {:?}: {}", map, err);
+            Err(_) => {
+                // Observed errors:
+                // * Invalid access to memory location. (os error 998)
+                // * Only part of a ReadProcessMemory or WriteProcessMemory request was completed. (os error 299)
+                // In either case this pointer map won't work.
                 None
             }
         }
+    }
+
+    pub fn health(&self) -> Option<Health> {
+        self.read(&self.life_es_map)
+    }
+
+    pub fn mana(&self) -> Option<Mana> {
+        self.read(&self.mana_map)
+    }
+
+    pub fn nudge_map_base_addr(&mut self, delta: isize) {
+        self.life_es_map.nudge_base(delta);
+        self.mana_map.nudge_base(delta);
     }
 }
 
