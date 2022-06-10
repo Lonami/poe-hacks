@@ -16,24 +16,38 @@ const TOO_LONG: Duration = Duration::from_millis(100);
 const PTR_MAP_FILE: &str = "ptr.map";
 
 fn main() {
+    match std::panic::catch_unwind(run) {
+        Ok(()) => {}
+        Err(err) => {
+            if let Some(msg) = err.downcast_ref::<String>() {
+                win::prompt::error("poe-hacks crashed!", msg);
+            } else if let Some(msg) = err.downcast_ref::<&str>() {
+                win::prompt::error("poe-hacks crashed!", msg);
+            } else {
+                win::prompt::error(
+                    "poe-hacks crashed!",
+                    "sorry, but there is no error information",
+                );
+            }
+
+            std::process::exit(101);
+        }
+    }
+}
+
+fn run() {
     win::screen::register_window_class().expect("failed to register window class for tooltips");
 
-    let checker = match std::env::current_exe() {
-        Ok(mut file) => {
-            file.set_file_name(PTR_MAP_FILE);
-            match MemoryChecker::load_ptr_map(&file) {
-                Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                    panic!("no ptr.map file found");
-                }
-                Err(err) => {
-                    panic!("failed to read ptr.map file: {}", err);
-                }
-                Ok(checker) => checker,
-            }
+    let mut file = std::env::current_exe().expect("could not locate self file location");
+    file.set_file_name(PTR_MAP_FILE);
+    let checker = match MemoryChecker::load_ptr_map(&file) {
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            panic!("pointer .map file not found at: {}\n\nthe file must exist for the program to read the in-game ehp value", file.to_string_lossy());
         }
-        Err(_) => {
-            panic!("failed to detect current exe");
+        Err(err) => {
+            panic!("failed to read ptr.map file: {}", err);
         }
+        Ok(checker) => checker,
     };
 
     eprintln!("waiting for right click...");

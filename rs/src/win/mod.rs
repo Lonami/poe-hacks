@@ -5,4 +5,5 @@ pub mod console;
 pub mod keyboard;
 pub mod mouse;
 pub mod proc;
+pub mod prompt;
 pub mod screen;
