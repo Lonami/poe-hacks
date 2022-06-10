@@ -17,5 +17,6 @@ path = "src/main.rs"
 
 [dependencies]
 attohttpc = "0.14.0"
+chrono = "0.4.19"
 lazy_static = "1.4.0"
 tinyjson = "2.1.1"
