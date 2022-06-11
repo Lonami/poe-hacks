@@ -6,6 +6,10 @@ use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+// Avoid spamming actions by default,
+// or the server may send "too many actions" on accident.
+const DEFAULT_ACTION_DELAY: Duration = Duration::from_millis(500);
+
 struct Action {
     pre: PreCondition,
     post: PostCondition,
@@ -27,7 +31,7 @@ impl Action {
 
         let mut pre: Option<PreCondition> = None;
         let mut post: Option<PostCondition> = None;
-        let mut delay = Duration::from_millis(0);
+        let mut delay = DEFAULT_ACTION_DELAY;
 
         enum State {
             WaitKeyword,
