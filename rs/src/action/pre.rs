@@ -132,13 +132,13 @@ impl Checker for MemoryChecker {
     }
 
     fn life_below(&self, threshold: Value) -> bool {
-        self.read::<Health>(&self.mana_map)
+        self.read::<Health>(&self.life_es_map)
             .map(|hp| check_threshold(threshold, hp.hp, hp.max_hp))
             .unwrap_or(false)
     }
 
     fn es_below(&self, threshold: Value) -> bool {
-        self.read::<Health>(&self.mana_map)
+        self.read::<Health>(&self.life_es_map)
             .map(|hp| check_threshold(threshold, hp.es, hp.max_es))
             .unwrap_or(false)
     }
