@@ -65,18 +65,18 @@ impl Action {
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
-                    let percent = utils::parse_percentage(word)?;
-                    pre = Some(PreCondition::LifeBelow { percent });
+                    let threshold = utils::parse_value(word)?;
+                    pre = Some(PreCondition::LifeBelow { threshold });
                     WaitKeyword
                 }
                 WaitEsValue => {
-                    let percent = utils::parse_percentage(word)?;
-                    pre = Some(PreCondition::EnergyBelow { percent });
+                    let threshold = utils::parse_value(word)?;
+                    pre = Some(PreCondition::EnergyBelow { threshold });
                     WaitKeyword
                 }
                 WaitManaValue => {
-                    let percent = utils::parse_percentage(word)?;
-                    pre = Some(PreCondition::ManaBelow { percent });
+                    let threshold = utils::parse_value(word)?;
+                    pre = Some(PreCondition::ManaBelow { threshold });
                     WaitKeyword
                 }
                 WaitKeyValue => {

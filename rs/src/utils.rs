@@ -3,18 +3,34 @@ use winapi::um::winuser::VK_F1;
 
 const POE_EXE: &'static str = "PathOfExile";
 
-pub fn parse_percentage(word: &str) -> Result<f64, &'static str> {
-    match word.trim_end_matches('%').parse::<isize>() {
+#[derive(Clone, Copy, Debug)]
+pub enum Value {
+    Percent(f32),
+    Flat(i32),
+}
+
+pub fn parse_value(word: &str) -> Result<Value, &'static str> {
+    let (percent, word) = if word.ends_with('%') {
+        (true, word.trim_end_matches('%'))
+    } else {
+        (false, word)
+    };
+
+    match word.parse::<i32>() {
         Ok(value) => {
             if value < 0 {
-                Err("the percentage can't be negative")
-            } else if value > 100 {
-                Err("the percentage can't be bigger than 100")
+                Err("the value can't be negative")
+            } else if percent {
+                if value > 100 {
+                    Err("the percentage can't be bigger than 100")
+                } else {
+                    Ok(Value::Percent(value as f32 / 100.0))
+                }
             } else {
-                Ok(value as f64 / 100.0)
+                Ok(Value::Flat(value))
             }
         }
-        Err(_) => Err("the percentage was not a valid number"),
+        Err(_) => Err("the value was not a valid number"),
     }
 }
 

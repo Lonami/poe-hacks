@@ -1,4 +1,5 @@
-use crate::{utils, win};
+use crate::utils::{self, Value};
+use crate::win;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
@@ -26,9 +27,9 @@ pub struct Mana {
 pub trait Checker {
     fn refresh(&mut self) -> Result<(), &'static str>;
     fn can_check(&self) -> bool;
-    fn life_below(&self, percent: f64) -> bool;
-    fn es_below(&self, percent: f64) -> bool;
-    fn mana_below(&self, percent: f64) -> bool;
+    fn life_below(&self, threshold: Value) -> bool;
+    fn es_below(&self, threshold: Value) -> bool;
+    fn mana_below(&self, threshold: Value) -> bool;
 }
 
 pub struct MemoryChecker {
@@ -38,9 +39,9 @@ pub struct MemoryChecker {
 }
 
 pub enum PreCondition {
-    LifeBelow { percent: f64 },
-    EnergyBelow { percent: f64 },
-    ManaBelow { percent: f64 },
+    LifeBelow { threshold: Value },
+    EnergyBelow { threshold: Value },
+    ManaBelow { threshold: Value },
     KeyPress { vk: u16 },
 }
 
@@ -130,40 +131,38 @@ impl Checker for MemoryChecker {
         self.process.running().unwrap_or(false)
     }
 
-    fn life_below(&self, percent: f64) -> bool {
-        if let Some(health) = self.read::<Health>(&self.life_es_map) {
-            let hp = health.hp as f64 / health.max_hp as f64;
-            hp < percent
-        } else {
-            false
-        }
+    fn life_below(&self, threshold: Value) -> bool {
+        self.read::<Health>(&self.mana_map)
+            .map(|hp| check_threshold(threshold, hp.hp, hp.max_hp))
+            .unwrap_or(false)
     }
 
-    fn es_below(&self, percent: f64) -> bool {
-        if let Some(health) = self.read::<Health>(&self.life_es_map) {
-            let es = health.es as f64 / health.max_es as f64;
-            es < percent
-        } else {
-            false
-        }
+    fn es_below(&self, threshold: Value) -> bool {
+        self.read::<Health>(&self.mana_map)
+            .map(|hp| check_threshold(threshold, hp.es, hp.max_es))
+            .unwrap_or(false)
     }
 
-    fn mana_below(&self, percent: f64) -> bool {
-        if let Some(mana) = self.read::<Mana>(&self.mana_map) {
-            let mp = mana.mana as f64 / mana.max_mana as f64;
-            mp < percent
-        } else {
-            false
-        }
+    fn mana_below(&self, threshold: Value) -> bool {
+        self.read::<Mana>(&self.mana_map)
+            .map(|mana| check_threshold(threshold, mana.mana, mana.max_mana))
+            .unwrap_or(false)
+    }
+}
+
+fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
+    match threshold {
+        Value::Percent(percent) => current <= (percent * max as f32) as i32,
+        Value::Flat(flat) => flat <= current,
     }
 }
 
 impl PreCondition {
     pub fn is_valid(&self, checker: &MemoryChecker) -> bool {
         match self {
-            Self::LifeBelow { percent } => checker.life_below(*percent),
-            Self::EnergyBelow { percent } => checker.es_below(*percent),
-            Self::ManaBelow { percent } => checker.mana_below(*percent),
+            Self::LifeBelow { threshold } => checker.life_below(*threshold),
+            Self::EnergyBelow { threshold } => checker.es_below(*threshold),
+            Self::ManaBelow { threshold } => checker.mana_below(*threshold),
             Self::KeyPress { vk } => win::keyboard::is_down(*vk),
         }
     }
