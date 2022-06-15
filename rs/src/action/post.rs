@@ -155,7 +155,7 @@ impl PostCondition {
 impl fmt::Display for PostCondition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PressKey { vk } => write!(f, "press {:02X}", vk),
+            Self::PressKey { vk } => write!(f, "press 0x{:02X}", vk),
             Self::Disconnect => write!(f, "disconnect"),
             Self::Type { string } => write!(f, "type {}", string),
             Self::ShowPrice => write!(f, "price"),

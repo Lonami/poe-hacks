@@ -27,7 +27,7 @@ impl fmt::Display for PreCondition {
             Self::LifeBelow { threshold } => write!(f, "life {}", threshold),
             Self::EnergyBelow { threshold } => write!(f, "es {}", threshold),
             Self::ManaBelow { threshold } => write!(f, "mana {}", threshold),
-            Self::KeyPress { vk } => write!(f, "key {:02X}", vk),
+            Self::KeyPress { vk } => write!(f, "key 0x{:02X}", vk),
         }
     }
 }
