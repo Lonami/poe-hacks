@@ -1,4 +1,5 @@
 use crate::{https, utils, win};
+use std::fmt;
 use std::thread::sleep;
 use std::time::Duration;
 use winapi::um::winuser::{VK_HOME, VK_RETURN, VK_RIGHT};
@@ -146,6 +147,26 @@ impl PostCondition {
                     .map_err(|_| "failed to restore original mouse pos")?;
                 Ok(())
                 */
+            }
+        }
+    }
+}
+
+impl fmt::Display for PostCondition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PressKey { vk } => write!(f, "press {:02X}", vk),
+            Self::Disconnect => write!(f, "disconnect"),
+            Self::Type { string } => write!(f, "type {}", string),
+            Self::ShowPrice => write!(f, "price"),
+            Self::InviteLast => write!(f, "invite"),
+            Self::Destroy => write!(f, "destroy"),
+            Self::Downscaling { enable } => {
+                if *enable {
+                    write!(f, "downscale")
+                } else {
+                    write!(f, "upscale")
+                }
             }
         }
     }

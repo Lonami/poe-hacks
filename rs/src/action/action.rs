@@ -15,7 +15,7 @@ struct Action {
     post: PostCondition,
     last_trigger: Instant,
     delay: Duration,
-    display: String,
+    _source: String,
 }
 
 pub struct ActionSet {
@@ -170,7 +170,7 @@ impl Action {
             post,
             delay,
             last_trigger: Instant::now() - delay,
-            display: line,
+            _source: line,
         }))
     }
 
@@ -185,9 +185,9 @@ impl Action {
 
     fn trigger(&mut self) {
         if let Err(message) = self.try_trigger() {
-            eprintln!("warning: run failed: {}: {}", self.display, message);
+            eprintln!("warning: run failed: {}: {}", self, message);
         } else {
-            eprintln!("note: ran successfully: {}", self.display);
+            eprintln!("note: ran successfully: {}", self);
         }
     }
 }
@@ -235,8 +235,20 @@ impl fmt::Display for ActionSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} actions for:", self.actions.len(),)?;
         for action in self.actions.iter() {
-            write!(f, "\n- {}", action.display)?;
+            write!(f, "\n- {}", action)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for Action {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "on {} every {}ms do {}",
+            self.pre,
+            self.delay.as_millis(),
+            self.post
+        )
     }
 }

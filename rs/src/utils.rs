@@ -1,4 +1,5 @@
 use crate::win;
+use std::fmt;
 use winapi::um::winuser::VK_F1;
 
 const POE_EXE: &'static str = "PathOfExile";
@@ -53,4 +54,13 @@ pub fn parse_vk(word: &str) -> Result<u16, &'static str> {
 
 pub fn open_poe() -> Option<win::proc::Process> {
     win::proc::Process::open_by_name(POE_EXE)
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Percent(percent) => write!(f, "{}%", (percent * 100.0) as i32),
+            Self::Flat(flat) => flat.fmt(f),
+        }
+    }
 }
