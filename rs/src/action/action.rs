@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 // or the server may send "too many actions" on accident.
 const DEFAULT_ACTION_DELAY: Duration = Duration::from_millis(500);
 
+#[derive(Debug, PartialEq)]
 struct Action {
     pre: PreCondition,
     post: PostCondition,
@@ -250,5 +251,165 @@ impl fmt::Display for Action {
             self.delay.as_millis(),
             self.post
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::Value;
+
+    fn action(line: &str) -> Action {
+        Action::from_line(line).unwrap().unwrap()
+    }
+
+    #[test]
+    fn empty_action() {
+        assert_eq!(Action::from_line("\t  \n"), Ok(None));
+    }
+
+    #[test]
+    fn comment_action() {
+        assert_eq!(Action::from_line("// on key 0x1 do disconnect"), Ok(None));
+    }
+
+    #[test]
+    fn pre_no_post() {
+        assert!(Action::from_line("on key 0x1").is_err());
+    }
+
+    #[test]
+    fn post_no_pre() {
+        assert!(Action::from_line("do disconnect").is_err());
+    }
+
+    #[test]
+    fn life_percent() {
+        assert_eq!(
+            action("on life 50% do disconnect").pre,
+            PreCondition::LifeBelow {
+                threshold: Value::Percent(0.5)
+            }
+        );
+    }
+
+    #[test]
+    fn life_flat() {
+        assert_eq!(
+            action("on life 1000 do disconnect").pre,
+            PreCondition::LifeBelow {
+                threshold: Value::Flat(1000)
+            }
+        );
+    }
+
+    #[test]
+    fn es_percent() {
+        assert_eq!(
+            action("on es 50% do disconnect").pre,
+            PreCondition::EnergyBelow {
+                threshold: Value::Percent(0.5)
+            }
+        );
+    }
+
+    #[test]
+    fn es_flat() {
+        assert_eq!(
+            action("on es 1000 do disconnect").pre,
+            PreCondition::EnergyBelow {
+                threshold: Value::Flat(1000)
+            }
+        );
+    }
+
+    #[test]
+    fn mana_percent() {
+        assert_eq!(
+            action("on mana 50% do disconnect").pre,
+            PreCondition::ManaBelow {
+                threshold: Value::Percent(0.5)
+            }
+        );
+    }
+
+    #[test]
+    fn mana_flat() {
+        assert_eq!(
+            action("on mana 1000 do disconnect").pre,
+            PreCondition::ManaBelow {
+                threshold: Value::Flat(1000)
+            }
+        );
+    }
+
+    #[test]
+    fn key() {
+        assert_eq!(
+            action("on key z do disconnect").pre,
+            PreCondition::KeyPress { vk: 0x5A }
+        );
+        assert_eq!(
+            action("on key Z do disconnect").pre,
+            PreCondition::KeyPress { vk: 0x5A }
+        );
+        assert_eq!(
+            action("on key 6 do disconnect").pre,
+            PreCondition::KeyPress { vk: 0x36 }
+        );
+        assert_eq!(
+            action("on key F11 do disconnect").pre,
+            PreCondition::KeyPress { vk: 0x7A }
+        );
+        assert_eq!(
+            action("on key 0x2 do disconnect").pre,
+            PreCondition::KeyPress { vk: 0x02 }
+        );
+    }
+
+    #[test]
+    fn key_synonyms() {
+        assert_eq!(
+            action("on key Z do disconnect").pre,
+            action("on flask Z do disconnect").pre
+        );
+        assert_eq!(
+            action("on key Z do disconnect").pre,
+            action("on skill Z do disconnect").pre
+        );
+    }
+
+    #[test]
+    fn parse_self_display() {
+        fn parse_self(line: &str) {
+            let parsed = action(line);
+            let reparsed = action(&parsed.to_string());
+            assert_eq!(parsed.pre, reparsed.pre);
+            assert_eq!(parsed.post, reparsed.post);
+            assert_eq!(parsed.delay, reparsed.delay);
+        }
+
+        parse_self("on life 50% do disconnect");
+        parse_self("do disconnect on life 1000");
+        parse_self("every 200ms on es 50% do disconnect");
+        parse_self("on es 1000 every 200ms do disconnect");
+        parse_self("on mana 50% do disconnect every 200ms");
+        parse_self("do disconnect every 200ms on mana 1000");
+        parse_self("every 200ms on key z do type test");
+        parse_self("do destroy on key Z every 200ms");
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(
+            action("on key Z do disconnect every 200ms").to_string(),
+            "on key 0x5A every 200ms do disconnect"
+        );
+
+        assert_eq!(
+            action("on key A every 200ms do disconnect on key Z every 300ms do type test")
+                .to_string(),
+            "on key 0x5A every 300ms do type test"
+        );
     }
 }

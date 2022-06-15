@@ -4,7 +4,7 @@ use winapi::um::winuser::VK_F1;
 
 const POE_EXE: &'static str = "PathOfExile";
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Value {
     Percent(f32),
     Flat(i32),

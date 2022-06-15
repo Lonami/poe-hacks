@@ -3,6 +3,7 @@ use crate::utils::Value;
 use crate::win;
 use std::fmt;
 
+#[derive(Debug, PartialEq)]
 pub enum PreCondition {
     LifeBelow { threshold: Value },
     EnergyBelow { threshold: Value },

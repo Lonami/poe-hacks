@@ -17,7 +17,7 @@ const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
 
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum PostCondition {
     PressKey { vk: u16 },
     Disconnect,
