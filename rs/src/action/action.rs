@@ -145,11 +145,16 @@ impl Action {
                 }
 
                 WaitDelayValue => {
-                    if !word.ends_with("ms") {
+                    let (number, factor) = if word.ends_with("ms") {
+                        (&word[..word.len() - 2], 1)
+                    } else if word.ends_with("s") {
+                        (&word[..word.len() - 1], 1000)
+                    } else {
                         return Err(format!("found unknown duration '{}' without ms", word));
-                    }
-                    delay = Duration::from_millis(match word[..word.len() - 2].parse() {
-                        Ok(value) => value,
+                    };
+
+                    delay = Duration::from_millis(match number.parse::<u64>() {
+                        Ok(value) => value * factor,
                         Err(_) => return Err(format!("found unknown duration value '{}'", word)),
                     });
                     WaitKeyword
@@ -402,8 +407,8 @@ mod tests {
     #[test]
     fn display() {
         assert_eq!(
-            action("on key Z do disconnect every 200ms").to_string(),
-            "on key 0x5A every 200ms do disconnect"
+            action("on key Z do disconnect every 2s").to_string(),
+            "on key 0x5A every 2000ms do disconnect"
         );
 
         assert_eq!(
