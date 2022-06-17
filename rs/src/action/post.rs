@@ -26,14 +26,21 @@ pub enum PostCondition {
     InviteLast,
     Destroy,
     Downscaling { enable: bool },
+    SetKeySuppression { suppress: bool },
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ActionResult {
+    None,
+    SetKeySuppression { suppress: bool },
 }
 
 impl PostCondition {
-    pub fn act(&self) -> Result<(), &'static str> {
+    pub fn act(&self) -> Result<ActionResult, &'static str> {
         match self {
             Self::PressKey { vk } => {
                 win::keyboard::press(*vk);
-                Ok(())
+                Ok(ActionResult::None)
             }
             Self::Disconnect => match utils::open_poe() {
                 None => Err("could not find poe running"),
@@ -43,7 +50,7 @@ impl PostCondition {
                         if n > 0 {
                             sleep(DISCONNECT_DELAY);
                         }
-                        Ok(())
+                        Ok(ActionResult::None)
                     }
                 },
             },
@@ -51,7 +58,7 @@ impl PostCondition {
                 win::keyboard::press(VK_RETURN as u16);
                 win::keyboard::type_string(&string);
                 win::keyboard::press(VK_RETURN as u16);
-                Ok(())
+                Ok(ActionResult::None)
             }
             Self::ShowPrice => {
                 // Press Ctrl+C
@@ -97,7 +104,7 @@ impl PostCondition {
                     }
                 }
 
-                Ok(())
+                Ok(ActionResult::None)
             }
             Self::InviteLast => {
                 win::keyboard::ctrl_press(VK_RETURN as u16);
@@ -105,14 +112,16 @@ impl PostCondition {
                 win::keyboard::shift_press(VK_RIGHT as u16);
                 win::keyboard::type_string("/invite ");
                 win::keyboard::ctrl_press(VK_RETURN as u16);
-                Ok(())
+
+                Ok(ActionResult::None)
             }
             Self::Destroy => {
                 win::mouse::click(win::mouse::Button::Left);
                 win::keyboard::ctrl_press(VK_RETURN as u16);
                 win::keyboard::type_string("/destroy");
                 win::keyboard::ctrl_press(VK_RETURN as u16);
-                Ok(())
+
+                Ok(ActionResult::None)
             }
             Self::Downscaling { enable: _ } => {
                 todo!()
@@ -124,7 +133,8 @@ impl PostCondition {
 
                     sleep(Duration::from_millis(64));
                     win::mouse::click(win::mouse::Button::Left);
-                    Ok(())
+
+                Ok(ActionResult::None)
                 };
 
                 let downscaling_select_y = if *enable {
@@ -145,9 +155,13 @@ impl PostCondition {
 
                 win::mouse::set(old_x, old_y)
                     .map_err(|_| "failed to restore original mouse pos")?;
-                Ok(())
+
+                Ok(ActionResult::None)
                 */
             }
+            Self::SetKeySuppression { suppress } => Ok(ActionResult::SetKeySuppression {
+                suppress: *suppress,
+            }),
         }
     }
 }
@@ -166,6 +180,13 @@ impl fmt::Display for PostCondition {
                     write!(f, "downscale")
                 } else {
                     write!(f, "upscale")
+                }
+            }
+            Self::SetKeySuppression { suppress } => {
+                if *suppress {
+                    write!(f, "disable")
+                } else {
+                    write!(f, "enable")
                 }
             }
         }

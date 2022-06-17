@@ -1,4 +1,4 @@
-use super::{Checker, MemoryChecker, PostCondition, PreCondition};
+use super::{ActionResult, Checker, MemoryChecker, PostCondition, PreCondition};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
@@ -22,6 +22,7 @@ struct Action {
 pub struct ActionSet {
     pub checker: MemoryChecker,
     actions: Vec<Action>,
+    inhibit_key_presses: bool,
 }
 
 impl Action {
@@ -123,6 +124,14 @@ impl Action {
                         post = Some(PostCondition::Downscaling { enable: false });
                         WaitKeyword
                     }
+                    "disable" => {
+                        post = Some(PostCondition::SetKeySuppression { suppress: true });
+                        WaitKeyword
+                    }
+                    "enable" => {
+                        post = Some(PostCondition::SetKeySuppression { suppress: false });
+                        WaitKeyword
+                    }
                     _ => return Err(format!("found unknown action '{}'", word)),
                 },
                 WaitPostValue => {
@@ -184,16 +193,21 @@ impl Action {
         self.pre.is_valid(checker) && self.last_trigger.elapsed() > self.delay
     }
 
-    fn try_trigger(&mut self) -> Result<(), &'static str> {
+    fn try_trigger(&mut self) -> Result<ActionResult, &'static str> {
         self.last_trigger = Instant::now();
         self.post.act()
     }
 
-    fn trigger(&mut self) {
-        if let Err(message) = self.try_trigger() {
-            eprintln!("warning: run failed: {}: {}", self, message);
-        } else {
-            eprintln!("note: ran successfully: {}", self);
+    fn trigger(&mut self) -> Option<ActionResult> {
+        match self.try_trigger() {
+            Ok(result) => {
+                eprintln!("note: ran successfully: {}", self);
+                Some(result)
+            }
+            Err(message) => {
+                eprintln!("warning: run failed: {}: {}", self, message);
+                None
+            }
         }
     }
 }
@@ -223,16 +237,28 @@ impl ActionSet {
                 .collect(),
         };
 
-        Ok(ActionSet { checker, actions })
+        Ok(ActionSet {
+            checker,
+            actions,
+            inhibit_key_presses: false,
+        })
     }
 
     pub fn check_all(&mut self) {
         if self.checker.can_check() {
             let checker = &self.checker;
+            let inhibit_key_presses = &mut self.inhibit_key_presses;
+            let skip_key_presses = *inhibit_key_presses;
             self.actions
                 .iter_mut()
+                .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
                 .filter(|a| a.check(checker))
-                .for_each(|a| a.trigger());
+                .for_each(|a| match a.trigger() {
+                    Some(ActionResult::SetKeySuppression { suppress }) => {
+                        *inhibit_key_presses = suppress;
+                    }
+                    Some(ActionResult::None) | None => {}
+                });
         }
     }
 }
@@ -402,6 +428,8 @@ mod tests {
         parse_self("do disconnect every 200ms on mana 1000");
         parse_self("every 200ms on key z do type test");
         parse_self("do destroy on key Z every 200ms");
+        parse_self("on key A do disable");
+        parse_self("on key B do enable");
     }
 
     #[test]
