@@ -12,7 +12,7 @@ const DEFAULT_ACTION_DELAY: Duration = Duration::from_millis(500);
 
 #[derive(Debug, PartialEq)]
 struct Action {
-    pre: PreCondition,
+    pre: Vec<PreCondition>,
     post: PostCondition,
     last_trigger: Instant,
     delay: Duration,
@@ -31,7 +31,7 @@ impl Action {
             return Ok(None);
         }
 
-        let mut pre: Option<PreCondition> = None;
+        let mut pre: Vec<PreCondition> = Vec::new();
         let mut post: Option<PostCondition> = None;
         let mut delay = DEFAULT_ACTION_DELAY;
 
@@ -72,21 +72,21 @@ impl Action {
                 },
                 WaitLifeValue => {
                     let threshold = utils::parse_value(word)?;
-                    pre = Some(PreCondition::LifeBelow { threshold });
+                    pre.push(PreCondition::LifeBelow { threshold });
                     WaitKeyword
                 }
                 WaitEsValue => {
                     let threshold = utils::parse_value(word)?;
-                    pre = Some(PreCondition::EnergyBelow { threshold });
+                    pre.push(PreCondition::EnergyBelow { threshold });
                     WaitKeyword
                 }
                 WaitManaValue => {
                     let threshold = utils::parse_value(word)?;
-                    pre = Some(PreCondition::ManaBelow { threshold });
+                    pre.push(PreCondition::ManaBelow { threshold });
                     WaitKeyword
                 }
                 WaitKeyValue => {
-                    pre = Some(PreCondition::KeyPress {
+                    pre.push(PreCondition::KeyPress {
                         vk: utils::parse_vk(word)?,
                     });
                     WaitKeyword
@@ -171,10 +171,9 @@ impl Action {
             }
         }
 
-        let pre = match pre {
-            Some(pre) => pre,
-            None => return Err("it has no trigger condition".into()),
-        };
+        if pre.is_empty() {
+            return Err("it has no trigger condition".into());
+        }
         let post = match post {
             Some(post) => post,
             None => return Err("it has no action to perform".into()),
@@ -190,7 +189,7 @@ impl Action {
     }
 
     fn check(&self, checker: &MemoryChecker) -> bool {
-        self.pre.is_valid(checker) && self.last_trigger.elapsed() > self.delay
+        self.pre.iter().all(|p| p.is_valid(checker)) && self.last_trigger.elapsed() > self.delay
     }
 
     fn try_trigger(&mut self) -> Result<ActionResult, &'static str> {
@@ -275,13 +274,10 @@ impl fmt::Display for ActionSet {
 
 impl fmt::Display for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "on {} every {}ms do {}",
-            self.pre,
-            self.delay.as_millis(),
-            self.post
-        )
+        for p in self.pre.iter() {
+            write!(f, "on {} ", p)?;
+        }
+        write!(f, "every {}ms do {}", self.delay.as_millis(), self.post)
     }
 }
 
@@ -318,9 +314,9 @@ mod tests {
     fn life_percent() {
         assert_eq!(
             action("on life 50% do disconnect").pre,
-            PreCondition::LifeBelow {
+            vec![PreCondition::LifeBelow {
                 threshold: Value::Percent(0.5)
-            }
+            }]
         );
     }
 
@@ -328,9 +324,9 @@ mod tests {
     fn life_flat() {
         assert_eq!(
             action("on life 1000 do disconnect").pre,
-            PreCondition::LifeBelow {
+            vec![PreCondition::LifeBelow {
                 threshold: Value::Flat(1000)
-            }
+            }]
         );
     }
 
@@ -338,9 +334,9 @@ mod tests {
     fn es_percent() {
         assert_eq!(
             action("on es 50% do disconnect").pre,
-            PreCondition::EnergyBelow {
+            vec![PreCondition::EnergyBelow {
                 threshold: Value::Percent(0.5)
-            }
+            }]
         );
     }
 
@@ -348,9 +344,9 @@ mod tests {
     fn es_flat() {
         assert_eq!(
             action("on es 1000 do disconnect").pre,
-            PreCondition::EnergyBelow {
+            vec![PreCondition::EnergyBelow {
                 threshold: Value::Flat(1000)
-            }
+            }]
         );
     }
 
@@ -358,9 +354,9 @@ mod tests {
     fn mana_percent() {
         assert_eq!(
             action("on mana 50% do disconnect").pre,
-            PreCondition::ManaBelow {
+            vec![PreCondition::ManaBelow {
                 threshold: Value::Percent(0.5)
-            }
+            }]
         );
     }
 
@@ -368,9 +364,9 @@ mod tests {
     fn mana_flat() {
         assert_eq!(
             action("on mana 1000 do disconnect").pre,
-            PreCondition::ManaBelow {
+            vec![PreCondition::ManaBelow {
                 threshold: Value::Flat(1000)
-            }
+            }]
         );
     }
 
@@ -378,23 +374,23 @@ mod tests {
     fn key() {
         assert_eq!(
             action("on key z do disconnect").pre,
-            PreCondition::KeyPress { vk: 0x5A }
+            vec![PreCondition::KeyPress { vk: 0x5A }]
         );
         assert_eq!(
             action("on key Z do disconnect").pre,
-            PreCondition::KeyPress { vk: 0x5A }
+            vec![PreCondition::KeyPress { vk: 0x5A }]
         );
         assert_eq!(
             action("on key 6 do disconnect").pre,
-            PreCondition::KeyPress { vk: 0x36 }
+            vec![PreCondition::KeyPress { vk: 0x36 }]
         );
         assert_eq!(
             action("on key F11 do disconnect").pre,
-            PreCondition::KeyPress { vk: 0x7A }
+            vec![PreCondition::KeyPress { vk: 0x7A }]
         );
         assert_eq!(
             action("on key 0x2 do disconnect").pre,
-            PreCondition::KeyPress { vk: 0x02 }
+            vec![PreCondition::KeyPress { vk: 0x02 }]
         );
     }
 
@@ -442,7 +438,7 @@ mod tests {
         assert_eq!(
             action("on key A every 200ms do disconnect on key Z every 300ms do type test")
                 .to_string(),
-            "on key 0x5A every 300ms do type test"
+            "on key 0x41 on key 0x5A every 300ms do type test"
         );
     }
 }
