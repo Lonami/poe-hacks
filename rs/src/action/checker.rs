@@ -144,8 +144,14 @@ impl Checker for MemoryChecker {
 }
 
 fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
-    match threshold {
-        Value::Percent(percent) => current <= (percent * max as f32) as i32,
-        Value::Flat(flat) => flat <= current,
+    // when logging in to town, poe seems to initialize the values to -1.
+    // don't check if that's the case (life or energy being -1 makes no sense).
+    if current == -1 {
+        false
+    } else {
+        match threshold {
+            Value::Percent(percent) => current <= (percent * max as f32) as i32,
+            Value::Flat(flat) => flat <= current,
+        }
     }
 }
