@@ -1,0 +1,85 @@
+poe-hacks syntax
+================
+
+the syntax for the .key files used by the rust version is not formally defined
+anywhere, so you will need to read the parsing code to understand what is
+currently possible. however, here's a breakdown of what's possible (this may
+be out of date).
+
+syntax
+------
+
+a .key file is made up of several rules.
+each rule has its own line.
+empty lines or lines starting with "//" are ignored (comments).
+
+there are several keywords which you can use in every line:
+* on. this will begin to define a precondition (what must happen for this rule to execute).
+* do. this will begin to define a postcondition (what will happen when the precondition is met).
+* every. this will add a delay to a rule (meaning it will wait for some time before executing again).
+
+after a keyword, you have to configure the specifics.
+
+the preconditions for "on" are as follows:
+* life. the action will trigger after the life falls below the given threshold.
+* mana. the action will trigger after the mana falls below the given threshold.
+* es. the action will trigger after the energy shield falls below the given threshold.
+* flask, key, skill. the action will trigger after a flask, or key, or skill button is pressed (these are all synonyms).
+
+the life, mana and es values can be given as a flat number (like 500) or a percentage (30%).
+
+the flask, key or skill expect a key to be pressed.
+numbers (like 3) and letters (like W) can be typed directly.
+you can also trigger on right mouse click by using 0x02
+(you can find these values in https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes).
+
+you can use multiple "on" preconditions in the same rule,
+so for example, you only get kicked if both your life and energy are low.
+
+the postcondition for "do" are as follows:
+* disconnect. the connection will be forcibly closed (this is why poe-hacks must run as admin).
+  depending on your network this may take a while to actually kick you from the game.
+* flask, key, skill. presses the given key.
+* type. presses enter, types a message (like /hideout), and presses enter again.
+* price. presses ctrl+c and pricechecks the item on trade.
+* invite. presses ctrl+enter and uses /invite on the last whisper.
+* destroy. left-clicks to select an item, presses enter, types /destroy, and presses enter again.
+* downscale. enables downscaling (currently not working).
+* upscale. disables downscaling (currently not working).
+* disable. disables rules which press keys ("turns off" the program).
+* enable. enables rules which press keys ("turns on" the program).
+
+the duration for "every" is always a number ended in "ms" (for milliseconds).
+there is a default duration of 500ms to avoid spamming actions on accident,
+but a lower cooldown can be used if specified manually (such as 250ms).
+you can also end the number in "s" (for seconds, which only works for whole numbers).
+
+examples
+--------
+
+here are some rules you can directly copy into a .key file and have working:
+
+// manual
+on key Z do disconnect
+
+// saving your life
+on es 20% do flask 4 every 8s
+on life 70% do flask 1 every 1500ms
+on life 40% on es 20% do disconnect
+on mana 30 do flask 5 every 6000ms
+
+// qol
+on key W do flask 3 every 8000ms
+on key F4 do invite
+on key F5 do type /hideout
+on key F6 do destroy
+
+// disable keys on pressing enter, enable them on leftclick
+on key 0x0D do disable
+on key 0x1 do enable
+
+tips
+----
+
+you're advised to "open with" the .key file with the poe-hacks executable so
+that you can double-click to launch poe-hacks using that file in easily.
