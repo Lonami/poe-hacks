@@ -151,7 +151,7 @@ fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
     } else {
         match threshold {
             Value::Percent(percent) => current <= (percent * max as f32) as i32,
-            Value::Flat(flat) => flat <= current,
+            Value::Flat(flat) => current <= flat,
         }
     }
 }
