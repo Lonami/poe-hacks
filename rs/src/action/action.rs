@@ -292,6 +292,7 @@ impl ActionSet {
     }
 
     pub fn check_all(&mut self) {
+        // this can suffer from TOCTOU errors but in practice can_check's result doesn't matter
         if self.checker.can_check() {
             let checker = &self.checker;
             let inhibit_key_presses = &mut self.inhibit_key_presses;

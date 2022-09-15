@@ -121,12 +121,21 @@ impl Checker for MemoryChecker {
     }
 
     fn can_check(&self) -> bool {
+        // if the hp is zero, the player is dead, so any further action is no longer meaningful.
+        // for this reason, treat 0 as having infinite health and never being below the threshold.
+        //
+        // when logging in to town, poe seems to initialize the values to -1. for this reason,
+        // `hp > 0` is used as opposed to `hp != 0` (it is meaningless to check for -1 health).
         self.process.running().unwrap_or(false)
+            && self
+                .read::<Health>(&self.life_es_map)
+                .map(|hp| hp.hp > 0)
+                .unwrap_or(false)
     }
 
     fn life_below(&self, threshold: Value) -> bool {
         self.read::<Health>(&self.life_es_map)
-            .map(|hp| check_threshold(threshold, hp.hp, hp.max_hp))
+            .map(|hp| hp.hp > 0 && check_threshold(threshold, hp.hp, hp.max_hp))
             .unwrap_or(false)
     }
 
@@ -144,8 +153,7 @@ impl Checker for MemoryChecker {
 }
 
 fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
-    // when logging in to town, poe seems to initialize the values to -1.
-    // don't check if that's the case (life or energy being -1 makes no sense).
+    // this check is already present in `can_check` but things may have changed since then
     if current == -1 {
         false
     } else {
