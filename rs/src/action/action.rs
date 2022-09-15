@@ -325,6 +325,9 @@ impl fmt::Display for Action {
         for p in self.pre.iter() {
             write!(f, "on {} ", p)?;
         }
+        if self.silent {
+            write!(f, "silent ")?;
+        }
         write!(
             f,
             "every {}ms after {}ms do {}",
@@ -477,6 +480,7 @@ mod tests {
             assert_eq!(parsed.post, reparsed.post);
             assert_eq!(parsed.delay, reparsed.delay);
             assert_eq!(parsed.windup_time, reparsed.windup_time);
+            assert_eq!(parsed.silent, reparsed.silent);
         }
 
         parse_self("on life 50% do disconnect");
@@ -487,7 +491,7 @@ mod tests {
         parse_self("do disconnect every 200ms on mana 1000");
         parse_self("every 200ms on key z do type test after 50ms");
         parse_self("do destroy on key Z every 200ms");
-        parse_self("on key A do disable");
+        parse_self("on key A do disable silent");
         parse_self("on key B do enable");
     }
 
