@@ -17,6 +17,7 @@ there are several keywords which you can use in every line:
 * on. this will begin to define a precondition (what must happen for this rule to execute).
 * do. this will begin to define a postcondition (what will happen when the precondition is met).
 * every. this will add a delay to a rule (meaning it will wait for some time before executing again).
+* after. this will add a windup time to a rule (meaning it will wait for some time before actually executing it).
 
 after a keyword, you have to configure the specifics.
 
@@ -54,6 +55,10 @@ there is a default duration of 500ms to avoid spamming actions on accident,
 but a lower cooldown can be used if specified manually (such as 250ms).
 you can also end the number in "s" (for seconds, which only works for whole numbers).
 
+the duration for "after" follows the same rules as "every".
+the default windup time is 0ms (so the action is executed instantly),
+but a higher value can be used if timing is important (such as activating a flask and then a skill).
+
 examples
 --------
 
@@ -70,6 +75,7 @@ on mana 30 do flask 5 every 6000ms
 
 // qol
 on key W do flask 3 every 8000ms
+on key W do key R every 8000ms after 500ms
 on key F4 do invite
 on key F5 do type /hideout
 on key F6 do destroy

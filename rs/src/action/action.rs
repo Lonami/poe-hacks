@@ -10,12 +10,16 @@ use std::time::{Duration, Instant};
 // or the server may send "too many actions" on accident.
 const DEFAULT_ACTION_DELAY: Duration = Duration::from_millis(500);
 
+const DEFAULT_ACTION_WINDUP: Duration = Duration::ZERO;
+
 #[derive(Debug, PartialEq)]
 struct Action {
     pre: Vec<PreCondition>,
     post: PostCondition,
     last_trigger: Instant,
     delay: Duration,
+    windup_start: Option<Instant>,
+    windup_time: Duration,
     _source: String,
 }
 
@@ -34,6 +38,7 @@ impl Action {
         let mut pre: Vec<PreCondition> = Vec::new();
         let mut post: Option<PostCondition> = None;
         let mut delay = DEFAULT_ACTION_DELAY;
+        let mut after = DEFAULT_ACTION_WINDUP;
 
         enum State {
             WaitKeyword,
@@ -49,6 +54,7 @@ impl Action {
             WaitPostRemaining,
 
             WaitDelayValue,
+            WaitAfterValue,
         }
 
         let mut state = State::WaitKeyword;
@@ -60,6 +66,7 @@ impl Action {
                     "on" => WaitPreKind,
                     "do" => WaitPostKind,
                     "every" => WaitDelayValue,
+                    "after" => WaitAfterValue,
                     _ => return Err(format!("found unexpected keyword '{}'", word)),
                 },
 
@@ -153,7 +160,7 @@ impl Action {
                     WaitPostRemaining
                 }
 
-                WaitDelayValue => {
+                WaitDelayValue | WaitAfterValue => {
                     let (number, factor) = if word.ends_with("ms") {
                         (&word[..word.len() - 2], 1)
                     } else if word.ends_with("s") {
@@ -162,10 +169,17 @@ impl Action {
                         return Err(format!("found unknown duration '{}' without ms", word));
                     };
 
-                    delay = Duration::from_millis(match number.parse::<u64>() {
+                    let duration = Duration::from_millis(match number.parse::<u64>() {
                         Ok(value) => value * factor,
                         Err(_) => return Err(format!("found unknown duration value '{}'", word)),
                     });
+
+                    match &state {
+                        WaitDelayValue => delay = duration,
+                        WaitAfterValue => after = duration,
+                        _ => unreachable!(),
+                    }
+
                     WaitKeyword
                 }
             }
@@ -183,13 +197,17 @@ impl Action {
             pre,
             post,
             delay,
+            windup_time: after,
             last_trigger: Instant::now() - delay,
+            windup_start: None,
             _source: line,
         }))
     }
 
     fn check(&self, checker: &MemoryChecker) -> bool {
-        self.pre.iter().all(|p| p.is_valid(checker)) && self.last_trigger.elapsed() > self.delay
+        self.windup_start.is_some()
+            || (self.pre.iter().all(|p| p.is_valid(checker))
+                && self.last_trigger.elapsed() > self.delay)
     }
 
     fn try_trigger(&mut self) -> Result<ActionResult, &'static str> {
@@ -198,6 +216,24 @@ impl Action {
     }
 
     fn trigger(&mut self) -> Option<ActionResult> {
+        if self.windup_time > Duration::ZERO {
+            let now = Instant::now();
+            if let Some(start) = self.windup_start {
+                if now < start + self.windup_time {
+                    return None;
+                } else {
+                    self.windup_start = None;
+                }
+            } else {
+                eprintln!(
+                    "note: queued for action after {:?}: {}",
+                    self.windup_time, self
+                );
+                self.windup_start = Some(now);
+                return None;
+            }
+        }
+
         match self.try_trigger() {
             Ok(result) => {
                 eprintln!("note: ran successfully: {}", self);
@@ -277,7 +313,13 @@ impl fmt::Display for Action {
         for p in self.pre.iter() {
             write!(f, "on {} ", p)?;
         }
-        write!(f, "every {}ms do {}", self.delay.as_millis(), self.post)
+        write!(
+            f,
+            "every {}ms after {}ms do {}",
+            self.delay.as_millis(),
+            self.windup_time.as_millis(),
+            self.post
+        )
     }
 }
 
@@ -371,6 +413,14 @@ mod tests {
     }
 
     #[test]
+    fn after_delay() {
+        assert_eq!(
+            action("on life 1000 do disconnect every 1000ms after 140ms").windup_time,
+            Duration::from_millis(140)
+        );
+    }
+
+    #[test]
     fn key() {
         assert_eq!(
             action("on key z do disconnect").pre,
@@ -414,6 +464,7 @@ mod tests {
             assert_eq!(parsed.pre, reparsed.pre);
             assert_eq!(parsed.post, reparsed.post);
             assert_eq!(parsed.delay, reparsed.delay);
+            assert_eq!(parsed.windup_time, reparsed.windup_time);
         }
 
         parse_self("on life 50% do disconnect");
@@ -422,7 +473,7 @@ mod tests {
         parse_self("on es 1000 every 200ms do disconnect");
         parse_self("on mana 50% do disconnect every 200ms");
         parse_self("do disconnect every 200ms on mana 1000");
-        parse_self("every 200ms on key z do type test");
+        parse_self("every 200ms on key z do type test after 50ms");
         parse_self("do destroy on key Z every 200ms");
         parse_self("on key A do disable");
         parse_self("on key B do enable");
@@ -432,13 +483,13 @@ mod tests {
     fn display() {
         assert_eq!(
             action("on key Z do disconnect every 2s").to_string(),
-            "on key 0x5A every 2000ms do disconnect"
+            "on key 0x5A every 2000ms after 0ms do disconnect"
         );
 
         assert_eq!(
             action("on key A every 200ms do disconnect on key Z every 300ms do type test")
                 .to_string(),
-            "on key 0x41 on key 0x5A every 300ms do type test"
+            "on key 0x41 on key 0x5A every 300ms after 0ms do type test"
         );
     }
 }
