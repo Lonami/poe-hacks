@@ -223,8 +223,9 @@ impl Action {
     }
 
     fn trigger(&mut self) -> Option<ActionResult> {
+        let now = Instant::now();
+
         if self.windup_time > Duration::ZERO {
-            let now = Instant::now();
             if let Some(start) = self.windup_start {
                 if now < start + self.windup_time {
                     return None;
@@ -234,8 +235,8 @@ impl Action {
             } else {
                 if !self.silent {
                     eprintln!(
-                        "note: queued for action after {:?}: {}",
-                        self.windup_time, self
+                        "[{:?}] note: queued for action after {:?}: {}",
+                        now, self.windup_time, self
                     );
                 }
                 self.windup_start = Some(now);
@@ -246,12 +247,12 @@ impl Action {
         match self.try_trigger() {
             Ok(result) => {
                 if !self.silent {
-                    eprintln!("note: ran successfully: {}", self);
+                    eprintln!("[{:?}] note: ran successfully: {}", now, self);
                 }
                 Some(result)
             }
             Err(message) => {
-                eprintln!("warning: run failed: {}: {}", self, message);
+                eprintln!("[{:?}] warning: run failed: {}: {}", now, self, message);
                 None
             }
         }
