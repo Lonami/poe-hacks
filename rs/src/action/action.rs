@@ -299,7 +299,12 @@ impl ActionSet {
                 .for_each(|a| match a.trigger() {
                     TriggerResult::Success(action_result) => {
                         if !a.silent {
-                            eprintln!("[{:?}] note: ran successfully: {}", created.elapsed(), a);
+                            eprintln!(
+                                "[{:?}; {}] note: ran successfully: {}",
+                                created.elapsed(),
+                                stats,
+                                a
+                            );
                         }
                         match action_result {
                             ActionResult::SetKeySuppression { suppress } => {
@@ -310,15 +315,21 @@ impl ActionSet {
                     }
                     TriggerResult::Failed { reason } => {
                         eprintln!(
-                            "[{:?}] warning: run failed: {}: {}",
+                            "[{:?}; {}] warning: run failed: {}: {}",
                             created.elapsed(),
+                            stats,
                             a,
                             reason
                         );
                     }
                     TriggerResult::Queued => {
                         if !a.silent {
-                            eprintln!("[{:?}] note: queued action: {}", created.elapsed(), a);
+                            eprintln!(
+                                "[{:?}; {}] note: queued action: {}",
+                                created.elapsed(),
+                                stats,
+                                a
+                            );
                         }
                     }
                     TriggerResult::Delayed => {}

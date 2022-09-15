@@ -1,5 +1,6 @@
 use crate::utils::{self, Value};
 use crate::win;
+use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
@@ -158,5 +159,20 @@ fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
     match threshold {
         Value::Percent(percent) => current <= (percent * max as f32) as i32,
         Value::Flat(flat) => current <= flat,
+    }
+}
+
+impl fmt::Display for PlayerStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "hp: {}/{}, es: {}/{}, mana: {}/{}",
+            self.health.hp,
+            self.health.max_hp,
+            self.health.es,
+            self.health.max_es,
+            self.mana.mana,
+            self.mana.max_mana
+        )
     }
 }
