@@ -18,6 +18,7 @@ there are several keywords which you can use in every line:
 * do. this will begin to define a postcondition (what will happen when the precondition is met).
 * every. this will add a delay to a rule (meaning it will wait for some time before executing again).
 * after. this will add a windup time to a rule (meaning it will wait for some time before actually executing it).
+* silent. this will make the action not show (if it's too spammy).
 
 after a keyword, you have to configure the specifics.
 

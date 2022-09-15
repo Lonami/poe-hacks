@@ -20,6 +20,7 @@ struct Action {
     delay: Duration,
     windup_start: Option<Instant>,
     windup_time: Duration,
+    silent: bool,
     _source: String,
 }
 
@@ -39,6 +40,7 @@ impl Action {
         let mut post: Option<PostCondition> = None;
         let mut delay = DEFAULT_ACTION_DELAY;
         let mut after = DEFAULT_ACTION_WINDUP;
+        let mut silent = false;
 
         enum State {
             WaitKeyword,
@@ -67,6 +69,10 @@ impl Action {
                     "do" => WaitPostKind,
                     "every" => WaitDelayValue,
                     "after" => WaitAfterValue,
+                    "silent" => {
+                        silent = true;
+                        WaitKeyword
+                    }
                     _ => return Err(format!("found unexpected keyword '{}'", word)),
                 },
 
@@ -200,6 +206,7 @@ impl Action {
             windup_time: after,
             last_trigger: Instant::now() - delay,
             windup_start: None,
+            silent,
             _source: line,
         }))
     }
@@ -225,10 +232,12 @@ impl Action {
                     self.windup_start = None;
                 }
             } else {
-                eprintln!(
-                    "note: queued for action after {:?}: {}",
-                    self.windup_time, self
-                );
+                if !self.silent {
+                    eprintln!(
+                        "note: queued for action after {:?}: {}",
+                        self.windup_time, self
+                    );
+                }
                 self.windup_start = Some(now);
                 return None;
             }
@@ -236,7 +245,9 @@ impl Action {
 
         match self.try_trigger() {
             Ok(result) => {
-                eprintln!("note: ran successfully: {}", self);
+                if !self.silent {
+                    eprintln!("note: ran successfully: {}", self);
+                }
                 Some(result)
             }
             Err(message) => {
