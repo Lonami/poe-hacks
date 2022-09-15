@@ -7,7 +7,7 @@ use win::proc::{Process, PtrMap};
 
 // In-memory structures for the memory checker.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Health {
     pub hp: i32,
     pub max_hp: i32,
@@ -17,11 +17,17 @@ pub struct Health {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Mana {
     pub mana: i32,
     pub max_mana: i32,
     pub unreserved_mana: i32,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PlayerStats {
+    health: Health,
+    mana: Mana,
 }
 
 pub trait Checker {
@@ -36,6 +42,7 @@ pub struct MemoryChecker {
     process: Process,
     life_es_map: win::proc::PtrMap,
     mana_map: win::proc::PtrMap,
+    stats: Option<PlayerStats>,
 }
 
 impl MemoryChecker {
@@ -67,6 +74,7 @@ impl MemoryChecker {
             process,
             life_es_map,
             mana_map,
+            stats: None,
         })
     }
 
@@ -106,18 +114,24 @@ impl MemoryChecker {
 
 impl Checker for MemoryChecker {
     fn refresh(&mut self) -> Result<(), &'static str> {
-        if self
+        if !self
             .process
             .running()
             .expect("failed to check for process status")
         {
-            Ok(())
-        } else if let Some(proc) = utils::open_poe() {
-            self.process = proc;
-            Ok(())
-        } else {
-            Err("could not find poe running")
+            if let Some(proc) = utils::open_poe() {
+                self.process = proc;
+            } else {
+                return Err("could not find poe running");
+            }
         }
+
+        self.stats = self
+            .health()
+            .zip(self.mana())
+            .map(|(health, mana)| PlayerStats { health, mana });
+
+        Ok(())
     }
 
     fn can_check(&self) -> bool {
@@ -126,28 +140,31 @@ impl Checker for MemoryChecker {
         //
         // when logging in to town, poe seems to initialize the values to -1. for this reason,
         // `hp > 0` is used as opposed to `hp != 0` (it is meaningless to check for -1 health).
-        self.process.running().unwrap_or(false)
-            && self
-                .read::<Health>(&self.life_es_map)
-                .map(|hp| hp.hp > 0)
-                .unwrap_or(false)
+        if let Some(stats) = &self.stats {
+            stats.health.hp > 0
+        } else {
+            false
+        }
     }
 
     fn life_below(&self, threshold: Value) -> bool {
-        self.read::<Health>(&self.life_es_map)
-            .map(|hp| hp.hp > 0 && check_threshold(threshold, hp.hp, hp.max_hp))
+        self.stats
+            .as_ref()
+            .map(|stats| check_threshold(threshold, stats.health.hp, stats.health.max_hp))
             .unwrap_or(false)
     }
 
     fn es_below(&self, threshold: Value) -> bool {
-        self.read::<Health>(&self.life_es_map)
-            .map(|hp| check_threshold(threshold, hp.es, hp.max_es))
+        self.stats
+            .as_ref()
+            .map(|stats| check_threshold(threshold, stats.health.es, stats.health.max_es))
             .unwrap_or(false)
     }
 
     fn mana_below(&self, threshold: Value) -> bool {
-        self.read::<Mana>(&self.mana_map)
-            .map(|mana| check_threshold(threshold, mana.mana, mana.max_mana))
+        self.stats
+            .as_ref()
+            .map(|stats| check_threshold(threshold, stats.mana.mana, stats.mana.max_mana))
             .unwrap_or(false)
     }
 }
