@@ -353,16 +353,16 @@ impl fmt::Display for Action {
         for p in self.pre.iter() {
             write!(f, "on {} ", p)?;
         }
+        if self.delay != DEFAULT_ACTION_DELAY {
+            write!(f, "every {}ms ", self.delay.as_millis())?;
+        }
+        if self.windup_time != DEFAULT_ACTION_WINDUP {
+            write!(f, "after {}ms ", self.windup_time.as_millis())?;
+        }
         if self.silent {
             write!(f, "silent ")?;
         }
-        write!(
-            f,
-            "every {}ms after {}ms do {}",
-            self.delay.as_millis(),
-            self.windup_time.as_millis(),
-            self.post
-        )
+        write!(f, "do {}", self.post)
     }
 }
 
@@ -527,13 +527,13 @@ mod tests {
     fn display() {
         assert_eq!(
             action("on key Z do disconnect every 2s").to_string(),
-            "on key 0x5A every 2000ms after 0ms do disconnect"
+            "on key 0x5A every 2000ms do disconnect"
         );
 
         assert_eq!(
-            action("on key A every 200ms do disconnect on key Z every 300ms do type test")
+            action("on key A every 200ms do disconnect after 10ms on key Z every 300ms after 30ms do type test")
                 .to_string(),
-            "on key 0x41 on key 0x5A every 300ms after 0ms do type test"
+            "on key 0x41 on key 0x5A every 300ms after 30ms do type test"
         );
     }
 }
