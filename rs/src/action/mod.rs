@@ -4,6 +4,6 @@ mod post;
 mod pre;
 
 pub use action::ActionSet;
-pub use checker::{Checker, Health, Mana, MemoryChecker};
+pub use checker::{Health, Mana, MemoryChecker, PlayerStats};
 pub use post::{ActionResult, PostCondition};
 pub use pre::PreCondition;

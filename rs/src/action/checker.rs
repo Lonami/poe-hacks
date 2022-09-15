@@ -30,14 +30,6 @@ pub struct PlayerStats {
     mana: Mana,
 }
 
-pub trait Checker {
-    fn refresh(&mut self) -> Result<(), &'static str>;
-    fn can_check(&self) -> bool;
-    fn life_below(&self, threshold: Value) -> bool;
-    fn es_below(&self, threshold: Value) -> bool;
-    fn mana_below(&self, threshold: Value) -> bool;
-}
-
 pub struct MemoryChecker {
     process: Process,
     life_es_map: win::proc::PtrMap,
@@ -110,10 +102,8 @@ impl MemoryChecker {
         self.life_es_map.nudge_base(delta);
         self.mana_map.nudge_base(delta);
     }
-}
 
-impl Checker for MemoryChecker {
-    fn refresh(&mut self) -> Result<(), &'static str> {
+    pub fn refresh(&mut self) -> Result<(), &'static str> {
         if !self
             .process
             .running()
@@ -134,49 +124,39 @@ impl Checker for MemoryChecker {
         Ok(())
     }
 
-    fn can_check(&self) -> bool {
+    pub fn player_stats(&self) -> Option<&PlayerStats> {
         // if the hp is zero, the player is dead, so any further action is no longer meaningful.
         // for this reason, treat 0 as having infinite health and never being below the threshold.
         //
         // when logging in to town, poe seems to initialize the values to -1. for this reason,
         // `hp > 0` is used as opposed to `hp != 0` (it is meaningless to check for -1 health).
-        if let Some(stats) = &self.stats {
-            stats.health.hp > 0
-        } else {
-            false
+        if let Some(stats) = self.stats.as_ref() {
+            if stats.health.hp > 0 {
+                return Some(stats);
+            }
         }
+
+        None
+    }
+}
+
+impl PlayerStats {
+    pub fn life_below(&self, threshold: Value) -> bool {
+        check_threshold(threshold, self.health.hp, self.health.max_hp)
     }
 
-    fn life_below(&self, threshold: Value) -> bool {
-        self.stats
-            .as_ref()
-            .map(|stats| check_threshold(threshold, stats.health.hp, stats.health.max_hp))
-            .unwrap_or(false)
+    pub fn es_below(&self, threshold: Value) -> bool {
+        check_threshold(threshold, self.health.es, self.health.max_es)
     }
 
-    fn es_below(&self, threshold: Value) -> bool {
-        self.stats
-            .as_ref()
-            .map(|stats| check_threshold(threshold, stats.health.es, stats.health.max_es))
-            .unwrap_or(false)
-    }
-
-    fn mana_below(&self, threshold: Value) -> bool {
-        self.stats
-            .as_ref()
-            .map(|stats| check_threshold(threshold, stats.mana.mana, stats.mana.max_mana))
-            .unwrap_or(false)
+    pub fn mana_below(&self, threshold: Value) -> bool {
+        check_threshold(threshold, self.mana.mana, self.mana.max_mana)
     }
 }
 
 fn check_threshold(threshold: Value, current: i32, max: i32) -> bool {
-    // this check is already present in `can_check` but things may have changed since then
-    if current == -1 {
-        false
-    } else {
-        match threshold {
-            Value::Percent(percent) => current <= (percent * max as f32) as i32,
-            Value::Flat(flat) => current <= flat,
-        }
+    match threshold {
+        Value::Percent(percent) => current <= (percent * max as f32) as i32,
+        Value::Flat(flat) => current <= flat,
     }
 }

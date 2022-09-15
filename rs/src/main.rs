@@ -2,7 +2,7 @@ mod action;
 mod https;
 mod utils;
 
-use crate::action::{ActionSet, Checker as _, Health, Mana, MemoryChecker};
+use crate::action::{ActionSet, Health, Mana, MemoryChecker};
 use rshacks::win;
 use std::fs;
 use std::io::{self, Write as _};

@@ -1,4 +1,4 @@
-use super::{ActionResult, Checker, MemoryChecker, PostCondition, PreCondition};
+use super::{ActionResult, MemoryChecker, PlayerStats, PostCondition, PreCondition};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
@@ -219,9 +219,9 @@ impl Action {
         }))
     }
 
-    fn check(&self, checker: &MemoryChecker) -> bool {
+    fn check(&self, stats: &PlayerStats) -> bool {
         self.windup_start.is_some()
-            || (self.pre.iter().all(|p| p.is_valid(checker))
+            || (self.pre.iter().all(|p| p.is_valid(stats))
                 && self.last_trigger.elapsed() > self.delay)
     }
 
@@ -287,8 +287,7 @@ impl ActionSet {
 
     pub fn check_all(&mut self) {
         // won't suffer from TOCTOU (all methods rely on information cached during refresh)
-        if self.checker.can_check() {
-            let checker = &self.checker;
+        if let Some(stats) = self.checker.player_stats() {
             let actions = &mut self.actions;
             let inhibit_key_presses = &mut self.inhibit_key_presses;
             let skip_key_presses = *inhibit_key_presses;
@@ -296,7 +295,7 @@ impl ActionSet {
             actions
                 .iter_mut()
                 .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
-                .filter(|a| a.check(checker))
+                .filter(|a| a.check(stats))
                 .for_each(|a| match a.trigger() {
                     TriggerResult::Success(action_result) => {
                         if !a.silent {

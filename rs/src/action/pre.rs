@@ -1,4 +1,4 @@
-use super::{Checker as _, MemoryChecker};
+use super::PlayerStats;
 use crate::utils::Value;
 use crate::win;
 use std::fmt;
@@ -12,7 +12,7 @@ pub enum PreCondition {
 }
 
 impl PreCondition {
-    pub fn is_valid(&self, checker: &MemoryChecker) -> bool {
+    pub fn is_valid(&self, checker: &PlayerStats) -> bool {
         match self {
             Self::LifeBelow { threshold } => checker.life_below(*threshold),
             Self::EnergyBelow { threshold } => checker.es_below(*threshold),
