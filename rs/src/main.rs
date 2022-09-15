@@ -182,9 +182,6 @@ fn run() {
             eprintln!("warning: check is taking too long: {:?}", now - last);
         }
         last = now;
-        // Taking a new "screenshot" of the entire screen takes ~30ms...
-        // But if we don't sleep at all we use too much CPU.
-        // 30ms is still better than 16ms **per point** we had with `GetPixel` anyway.
         sleep(DELAY);
         match actions.checker.refresh() {
             Ok(_) => actions.check_all(),
