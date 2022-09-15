@@ -28,6 +28,14 @@ pub struct ActionSet {
     pub checker: MemoryChecker,
     actions: Vec<Action>,
     inhibit_key_presses: bool,
+    created: Instant,
+}
+
+enum TriggerResult {
+    Success(ActionResult),
+    Failed { reason: &'static str },
+    Queued,
+    Delayed,
 }
 
 impl Action {
@@ -222,39 +230,24 @@ impl Action {
         self.post.act()
     }
 
-    fn trigger(&mut self) -> Option<ActionResult> {
-        let now = Instant::now();
-
+    fn trigger(&mut self) -> TriggerResult {
         if self.windup_time > Duration::ZERO {
+            let now = Instant::now();
             if let Some(start) = self.windup_start {
                 if now < start + self.windup_time {
-                    return None;
+                    return TriggerResult::Delayed;
                 } else {
                     self.windup_start = None;
                 }
             } else {
-                if !self.silent {
-                    eprintln!(
-                        "[{:?}] note: queued for action after {:?}: {}",
-                        now, self.windup_time, self
-                    );
-                }
                 self.windup_start = Some(now);
-                return None;
+                return TriggerResult::Queued;
             }
         }
 
         match self.try_trigger() {
-            Ok(result) => {
-                if !self.silent {
-                    eprintln!("[{:?}] note: ran successfully: {}", now, self);
-                }
-                Some(result)
-            }
-            Err(message) => {
-                eprintln!("[{:?}] warning: run failed: {}: {}", now, self, message);
-                None
-            }
+            Ok(result) => TriggerResult::Success(result),
+            Err(reason) => TriggerResult::Failed { reason },
         }
     }
 }
@@ -288,6 +281,7 @@ impl ActionSet {
             checker,
             actions,
             inhibit_key_presses: false,
+            created: Instant::now(),
         })
     }
 
@@ -295,17 +289,40 @@ impl ActionSet {
         // this can suffer from TOCTOU errors but in practice can_check's result doesn't matter
         if self.checker.can_check() {
             let checker = &self.checker;
+            let actions = &mut self.actions;
             let inhibit_key_presses = &mut self.inhibit_key_presses;
             let skip_key_presses = *inhibit_key_presses;
-            self.actions
+            let created = &self.created;
+            actions
                 .iter_mut()
                 .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
                 .filter(|a| a.check(checker))
                 .for_each(|a| match a.trigger() {
-                    Some(ActionResult::SetKeySuppression { suppress }) => {
-                        *inhibit_key_presses = suppress;
+                    TriggerResult::Success(action_result) => {
+                        if !a.silent {
+                            eprintln!("[{:?}] note: ran successfully: {}", created.elapsed(), a);
+                        }
+                        match action_result {
+                            ActionResult::SetKeySuppression { suppress } => {
+                                *inhibit_key_presses = suppress;
+                            }
+                            ActionResult::None => {}
+                        }
                     }
-                    Some(ActionResult::None) | None => {}
+                    TriggerResult::Failed { reason } => {
+                        eprintln!(
+                            "[{:?}] warning: run failed: {}: {}",
+                            created.elapsed(),
+                            a,
+                            reason
+                        );
+                    }
+                    TriggerResult::Queued => {
+                        if !a.silent {
+                            eprintln!("[{:?}] note: queued action: {}", created.elapsed(), a);
+                        }
+                    }
+                    TriggerResult::Delayed => {}
                 });
         }
     }
