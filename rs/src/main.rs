@@ -110,12 +110,17 @@ fn run() {
         sleep(DELAY);
     }
 
-    match checker.health().zip(checker.mana()) {
-        Some((health, mana)) => {
+    match checker.refresh() {
+        Ok(_) => {}
+        Err(err) => panic!("failed to refresh player stats: {}", err),
+    }
+
+    match checker.player_stats() {
+        Some(stats) => {
             // pointer-map seems to work but may have been chance (unlikely) so check for abnormal values.
             // if abnormal values are found, crash (manually finding the new addresses is required).
-            if suspicious_hp_or_mana(&health, &mana) {
-                panic!("current ptr.map did not fail but the values look wrong, manual fix required: {:#?}, {:#?}", health, mana);
+            if suspicious_hp_or_mana(&stats.health, &stats.mana) {
+                panic!("current ptr.map did not fail but the values look wrong, manual fix required: {:#?}, {:#?}", stats.health, stats.mana);
             }
         }
         None => {

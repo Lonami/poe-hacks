@@ -12,6 +12,9 @@ use winapi::{ENUM, STRUCT};
 
 const ANY_SIZE: usize = 1;
 
+const NO_PROCESS_HANDLE: *mut winapi::ctypes::c_void =
+    -1isize as usize as *mut winapi::ctypes::c_void;
+
 // From https://github.com/retep998/winapi-rs/pull/802
 ENUM! {enum TcpTableClass {
     TCP_TABLE_BASIC_LISTENER = 0,
@@ -183,6 +186,11 @@ impl Process {
     }
 
     pub fn running(&self) -> io::Result<bool> {
+        // The default process can never be running since it does not exist.
+        if self.pid == 0 && self.handle.as_ptr() == NO_PROCESS_HANDLE {
+            return Ok(false);
+        }
+
         let mut exit_code = 0;
         if unsafe {
             winapi::um::processthreadsapi::GetExitCodeProcess(self.handle.as_ptr(), &mut exit_code)
@@ -287,6 +295,16 @@ impl Process {
             })?;
 
         self.read(base + map.offsets[map.offsets.len() - 1])
+    }
+}
+
+impl Default for Process {
+    /// Creates a process with PID 0 and invalid handle.
+    fn default() -> Self {
+        Self {
+            pid: 0,
+            handle: NonNull::new(NO_PROCESS_HANDLE).unwrap(),
+        }
     }
 }
 

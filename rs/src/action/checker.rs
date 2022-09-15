@@ -27,8 +27,8 @@ pub struct Mana {
 
 #[derive(Clone, Debug, Default)]
 pub struct PlayerStats {
-    health: Health,
-    mana: Mana,
+    pub health: Health,
+    pub mana: Mana,
 }
 
 pub struct MemoryChecker {
@@ -59,9 +59,10 @@ impl MemoryChecker {
             .parse()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let process = utils::open_poe().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotConnected, "could not find poe running")
-        })?;
+        // Use the default (non-existing, non-running) process until it's later refreshed.
+        // Otherwise checkers cannot be loaded until the actual desired process was running
+        // (which makes sense, but doesn't matter since even then it could later die).
+        let process = Process::default();
 
         Ok(Self {
             process,
