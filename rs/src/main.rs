@@ -18,7 +18,7 @@ const PTR_MAP_FILE: &str = "ptr.map";
 
 const SUSPICIOUS_MAX_HEALTH: i32 = 12000;
 const SUSPICIOUS_MAX_ENERGY: i32 = 15000;
-const SUSPICIOUS_MAX_MANA: i32 = 5000;
+const SUSPICIOUS_MAX_MANA: i32 = 12000;
 
 // Since PoE 3.14 and 3.18 the base addresses have been 0x025F5988 to 0x02C51FA8,
 // and all of them end at 0x8. Subsequent offsets have never changed since 3.16,
