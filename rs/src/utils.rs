@@ -66,6 +66,15 @@ pub fn parse_direction(word: &str) -> Result<Direction, &'static str> {
     })
 }
 
+pub fn parse_click(word: &str) -> Result<win::mouse::Button, &'static str> {
+    Ok(match word {
+        "left" | "1" => win::mouse::Button::Left,
+        "right" | "2" => win::mouse::Button::Right,
+        "middle" | "3" => win::mouse::Button::Middle,
+        _ => return Err("click can only be left, right or middle"),
+    })
+}
+
 pub fn open_poe() -> Option<win::proc::Process> {
     win::proc::Process::open_by_name(POE_EXE)
 }

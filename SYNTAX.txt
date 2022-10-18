@@ -78,7 +78,7 @@ on life 40% on es 20% do disconnect
 on mana 30 do flask 5 every 6000ms
 
 // qol
-on key 0x11 on wheel up do key 0x1 every 5ms
+on key 0x11 on wheel up do click left every 5ms silent
 on key W do flask 3 every 8000ms
 on key W do key R every 8000ms after 500ms
 on key F4 do invite

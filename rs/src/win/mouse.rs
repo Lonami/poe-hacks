@@ -9,6 +9,7 @@ use winapi::um::winuser::{
     MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, WHEEL_DELTA,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Button {
     Left,
     Right,

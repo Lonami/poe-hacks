@@ -63,6 +63,7 @@ impl Action {
 
             WaitPostKind,
             WaitPostValue,
+            WaitPostClick,
             WaitPostRemaining,
 
             WaitDelayValue,
@@ -128,6 +129,7 @@ impl Action {
                         WaitKeyword
                     }
                     "flask" | "key" | "skill" => WaitPostValue,
+                    "click" => WaitPostClick,
                     "type" => {
                         post = Some(PostCondition::Type {
                             string: String::new(),
@@ -167,6 +169,12 @@ impl Action {
                 WaitPostValue => {
                     post = Some(PostCondition::PressKey {
                         vk: utils::parse_vk(word)?,
+                    });
+                    WaitKeyword
+                }
+                WaitPostClick => {
+                    post = Some(PostCondition::Click {
+                        button: utils::parse_click(word)?,
                     });
                     WaitKeyword
                 }
