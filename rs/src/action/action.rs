@@ -1,4 +1,4 @@
-use super::{ActionResult, MemoryChecker, PlayerStats, PostCondition, PreCondition};
+use super::{ActionResult, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
@@ -29,6 +29,7 @@ pub struct ActionSet {
     actions: Vec<Action>,
     inhibit_key_presses: bool,
     created: Instant,
+    mouse_hook: bool,
 }
 
 enum TriggerResult {
@@ -58,6 +59,7 @@ impl Action {
             WaitEsValue,
             WaitManaValue,
             WaitKeyValue,
+            WaitDirectionValue,
 
             WaitPostKind,
             WaitPostValue,
@@ -89,6 +91,7 @@ impl Action {
                     "es" => WaitEsValue,
                     "mana" => WaitManaValue,
                     "flask" | "key" | "skill" => WaitKeyValue,
+                    "wheel" => WaitDirectionValue,
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
@@ -109,6 +112,12 @@ impl Action {
                 WaitKeyValue => {
                     pre.push(PreCondition::KeyPress {
                         vk: utils::parse_vk(word)?,
+                    });
+                    WaitKeyword
+                }
+                WaitDirectionValue => {
+                    pre.push(PreCondition::MouseWheel {
+                        dir: utils::parse_direction(word)?,
                     });
                     WaitKeyword
                 }
@@ -219,9 +228,9 @@ impl Action {
         }))
     }
 
-    fn check(&self, stats: &PlayerStats) -> bool {
+    fn check(&self, stats: &PlayerStats, mouse_status: MouseStatus) -> bool {
         self.windup_start.is_some()
-            || (self.pre.iter().all(|p| p.is_valid(stats))
+            || (self.pre.iter().all(|p| p.is_valid(stats, mouse_status))
                 && self.last_trigger.elapsed() > self.delay)
     }
 
@@ -277,17 +286,30 @@ impl ActionSet {
                 .collect(),
         };
 
+        let mouse_hook = actions.iter().any(|a| {
+            a.pre
+                .iter()
+                .any(|p| matches!(p, PreCondition::MouseWheel { .. }))
+        });
+
         Ok(ActionSet {
             checker,
             actions,
             inhibit_key_presses: false,
             created: Instant::now(),
+            mouse_hook,
         })
     }
 
     pub fn check_all(&mut self) {
         // won't suffer from TOCTOU (all methods rely on information cached during refresh)
         if let Some(stats) = self.checker.player_stats() {
+            let mouse_status = if self.mouse_hook {
+                super::poll_mouse_status()
+            } else {
+                MouseStatus::default()
+            };
+
             let actions = &mut self.actions;
             let inhibit_key_presses = &mut self.inhibit_key_presses;
             let skip_key_presses = *inhibit_key_presses;
@@ -295,7 +317,7 @@ impl ActionSet {
             actions
                 .iter_mut()
                 .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
-                .filter(|a| a.check(stats))
+                .filter(|a| a.check(stats, mouse_status))
                 .for_each(|a| match a.trigger() {
                     TriggerResult::Success(action_result) => {
                         if !a.silent {
@@ -335,6 +357,10 @@ impl ActionSet {
                     TriggerResult::Delayed => {}
                 });
         }
+    }
+
+    pub fn needs_mouse_hook(&self) -> bool {
+        self.mouse_hook
     }
 }
 

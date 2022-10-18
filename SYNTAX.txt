@@ -27,6 +27,7 @@ the preconditions for "on" are as follows:
 * mana. the action will trigger after the mana falls below the given threshold.
 * es. the action will trigger after the energy shield falls below the given threshold.
 * flask, key, skill. the action will trigger after a flask, or key, or skill button is pressed (these are all synonyms).
+* wheel. the action will trigger when the mouse wheel is scrolled up or down.
 
 the life, mana and es values can be given as a flat number (like 500) or a percentage (30%).
 
@@ -34,6 +35,8 @@ the flask, key or skill expect a key to be pressed.
 numbers (like 3) and letters (like W) can be typed directly.
 you can also trigger on right mouse click by using 0x02
 (you can find these values in https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes).
+
+the wheel expect either "up" or "down" for the scroll direction.
 
 you can use multiple "on" preconditions in the same rule,
 so for example, you only get kicked if both your life and energy are low.
@@ -75,6 +78,7 @@ on life 40% on es 20% do disconnect
 on mana 30 do flask 5 every 6000ms
 
 // qol
+on key 0x11 on wheel up do key 0x1 every 5ms
 on key W do flask 3 every 8000ms
 on key W do key R every 8000ms after 500ms
 on key F4 do invite

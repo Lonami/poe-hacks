@@ -178,7 +178,13 @@ fn run() {
         .expect(&format!("failed to load action set from '{}'", file));
     eprintln!("loaded action set from '{}'", file);
 
+    if actions.needs_mouse_hook() {
+        eprintln!("actions need mouse hook, installing");
+        win::hook::install_mouse_hook();
+    }
+
     eprintln!("loaded {}", actions);
+
     println!("poe-hacks is now running");
     let mut last = Instant::now();
     loop {

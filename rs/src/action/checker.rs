@@ -6,6 +6,12 @@ use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use win::proc::{Process, PtrMap};
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MouseStatus {
+    pub scrolled_up: bool,
+    pub scrolled_down: bool,
+}
+
 // In-memory structures for the memory checker.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
@@ -175,5 +181,12 @@ impl fmt::Display for PlayerStats {
             self.mana.mana,
             self.mana.max_mana
         )
+    }
+}
+
+pub fn poll_mouse_status() -> MouseStatus {
+    MouseStatus {
+        scrolled_up: win::hook::poll_mouse_wheel_up(),
+        scrolled_down: win::hook::poll_mouse_wheel_down(),
     }
 }

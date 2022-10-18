@@ -10,6 +10,12 @@ pub enum Value {
     Flat(i32),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Direction {
+    Up,
+    Down,
+}
+
 pub fn parse_value(word: &str) -> Result<Value, &'static str> {
     let (percent, word) = if word.ends_with('%') {
         (true, word.trim_end_matches('%'))
@@ -50,6 +56,14 @@ pub fn parse_vk(word: &str) -> Result<u16, &'static str> {
     } else {
         Ok(win::keyboard::get_vk(word.as_bytes()[0]))
     }
+}
+
+pub fn parse_direction(word: &str) -> Result<Direction, &'static str> {
+    Ok(match word {
+        "up" => Direction::Up,
+        "down" => Direction::Down,
+        _ => return Err("direction can only be up or down"),
+    })
 }
 
 pub fn open_poe() -> Option<win::proc::Process> {
