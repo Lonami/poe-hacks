@@ -21,6 +21,12 @@ struct Action {
     windup_start: Option<Instant>,
     windup_time: Duration,
     silent: bool,
+    /// `Some(toggled on)` if it can be toggled on and off, `None` otherwise (immediate one-shot).
+    toggle: Option<bool>,
+    /// When toggling an action, the preconditions are being held to true.
+    /// This is used to prevent it from being toggled back until the precondition
+    /// has been checked to be false at least once during a check to toggle.
+    toggle_pre_held: bool,
     _source: String,
 }
 
@@ -50,6 +56,7 @@ impl Action {
         let mut delay = DEFAULT_ACTION_DELAY;
         let mut after = DEFAULT_ACTION_WINDUP;
         let mut silent = false;
+        let mut toggle = None;
 
         enum State {
             WaitKeyword,
@@ -78,6 +85,10 @@ impl Action {
                 WaitKeyword => match word {
                     "on" => WaitPreKind,
                     "do" => WaitPostKind,
+                    "toggle" => {
+                        toggle = Some(false);
+                        WaitPostKind
+                    }
                     "every" => WaitDelayValue,
                     "after" => WaitAfterValue,
                     "silent" => {
@@ -232,22 +243,47 @@ impl Action {
             last_trigger: Instant::now() - delay,
             windup_start: None,
             silent,
+            toggle,
+            toggle_pre_held: false,
             _source: line,
         }))
     }
 
+    /// Check preconditions.
+    fn check_pre(&self, stats: &PlayerStats, mouse_status: MouseStatus) -> bool {
+        self.pre.iter().all(|p| p.is_valid(stats, mouse_status))
+    }
+
+    /// Returns `true` if `trigger` should be called.
     fn check(&self, stats: &PlayerStats, mouse_status: MouseStatus) -> bool {
         self.windup_start.is_some()
-            || (self.pre.iter().all(|p| p.is_valid(stats, mouse_status))
+            || ((matches!(self.toggle, Some(true)) || self.check_pre(stats, mouse_status))
                 && self.last_trigger.elapsed() > self.delay)
     }
 
-    fn try_trigger(&mut self) -> Result<ActionResult, &'static str> {
+    /// Attempt to toggle the action on or off (if the action is not a one-shot).
+    fn try_toggle(&mut self, stats: &PlayerStats, mouse_status: MouseStatus) {
+        if let Some(enabled) = self.toggle {
+            // `toggle_pre_held` needs to be false at least once to toggle an action back.
+            if self.toggle_pre_held {
+                self.toggle_pre_held = self.check_pre(stats, mouse_status);
+            } else if self.check_pre(stats, mouse_status) {
+                self.toggle = Some(!enabled);
+                self.toggle_pre_held = true;
+            }
+        }
+    }
+
+    /// Trigger the action.
+    fn trigger(&mut self) -> Result<ActionResult, &'static str> {
         self.last_trigger = Instant::now();
         self.post.act()
     }
 
-    fn trigger(&mut self) -> TriggerResult {
+    /// Try to trigger the action.
+    ///
+    /// If it has windup, the action will be delayed.
+    fn try_trigger(&mut self) -> TriggerResult {
         if self.windup_time > Duration::ZERO {
             let now = Instant::now();
             if let Some(start) = self.windup_start {
@@ -262,7 +298,7 @@ impl Action {
             }
         }
 
-        match self.try_trigger() {
+        match self.trigger() {
             Ok(result) => TriggerResult::Success(result),
             Err(reason) => TriggerResult::Failed { reason },
         }
@@ -324,9 +360,13 @@ impl ActionSet {
             let created = &self.created;
             actions
                 .iter_mut()
+                .map(|a| {
+                    a.try_toggle(stats, mouse_status);
+                    a
+                })
                 .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
                 .filter(|a| a.check(stats, mouse_status))
-                .for_each(|a| match a.trigger() {
+                .for_each(|a| match a.try_trigger() {
                     TriggerResult::Success(action_result) => {
                         if !a.silent {
                             eprintln!(

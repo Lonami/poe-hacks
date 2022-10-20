@@ -16,6 +16,7 @@ empty lines or lines starting with "//" are ignored (comments).
 there are several keywords which you can use in every line:
 * on. this will begin to define a precondition (what must happen for this rule to execute).
 * do. this will begin to define a postcondition (what will happen when the precondition is met).
+* toggle. this behaves like "do", but it will toggle the action on to keep running until it's toggled off.
 * every. this will add a delay to a rule (meaning it will wait for some time before executing again).
 * after. this will add a windup time to a rule (meaning it will wait for some time before actually executing it).
 * silent. this will make the action not show (if it's too spammy).
@@ -79,6 +80,7 @@ on mana 30 do flask 5 every 6000ms
 
 // qol
 on key 0x11 on wheel up do click left every 5ms silent
+on key 0x06 toggle click left every 150ms silent
 on key W do flask 3 every 8000ms
 on key W do key R every 8000ms after 500ms
 on key F4 do invite
