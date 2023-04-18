@@ -207,6 +207,8 @@ impl Action {
                         (&word[..word.len() - 2], 1)
                     } else if word.ends_with("s") {
                         (&word[..word.len() - 1], 1000)
+                    } else if word == "0" {
+                        (word, 0)
                     } else {
                         return Err(format!("found unknown duration '{}' without ms", word));
                     };
