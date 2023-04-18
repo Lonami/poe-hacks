@@ -29,6 +29,8 @@ the preconditions for "on" are as follows:
 * es. the action will trigger after the energy shield falls below the given threshold.
 * flask, key, skill. the action will trigger after a flask, or key, or skill button is pressed (these are all synonyms).
 * wheel. the action will trigger when the mouse wheel is scrolled up or down.
+* town. the action will trigger while you are in town.
+* map. the action will trigger while you are in a non-town area.
 
 the life, mana and es values can be given as a flat number (like 500) or a percentage (30%).
 
@@ -90,6 +92,10 @@ on key F6 do destroy
 // disable keys on pressing enter, enable them on leftclick
 on key 0x0D do disable
 on key 0x1 do enable
+
+// disable keys on entering town, enable them on entering a map
+on town do disable every 0 silent
+on map do enable every 0 silent
 
 tips
 ----

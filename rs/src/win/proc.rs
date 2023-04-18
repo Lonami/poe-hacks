@@ -240,6 +240,25 @@ impl Process {
         }
     }
 
+    pub fn file_name(&self) -> io::Result<String> {
+        let mut buffer = Vec::with_capacity(512);
+        let length = unsafe {
+            winapi::um::psapi::GetModuleFileNameExA(
+                self.handle.as_ptr(),
+                self.base_addr()?,
+                buffer.as_mut_ptr(),
+                buffer.capacity() as u32,
+            )
+        };
+        if length != 0 {
+            unsafe { buffer.set_len(length as usize) };
+            String::from_utf8(buffer.iter().map(|b| *b as u8).collect())
+                .map_err(|_| io::Error::last_os_error())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
     pub fn memory_regions(&self) -> Vec<winapi::um::winnt::MEMORY_BASIC_INFORMATION> {
         let mut base = SCAN_START;
         let mut regions = Vec::new();

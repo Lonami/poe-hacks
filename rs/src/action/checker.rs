@@ -2,7 +2,7 @@ use crate::utils::{self, Value};
 use crate::win;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 use win::proc::{Process, PtrMap};
 
@@ -10,6 +10,11 @@ use win::proc::{Process, PtrMap};
 pub struct MouseStatus {
     pub scrolled_up: bool,
     pub scrolled_down: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AreaStatus {
+    pub in_town: Option<bool>,
 }
 
 // In-memory structures for the memory checker.
@@ -37,11 +42,18 @@ pub struct PlayerStats {
     pub mana: Mana,
 }
 
+trait ReadSeek: Read + Seek {}
+
+impl<T: Read + Seek> ReadSeek for T {}
+
 pub struct MemoryChecker {
     process: Process,
     life_es_map: win::proc::PtrMap,
     mana_map: win::proc::PtrMap,
     stats: Option<PlayerStats>,
+    in_town: Option<bool>,
+    log_buffer: String,
+    log_reader: BufReader<Box<dyn ReadSeek>>,
 }
 
 impl MemoryChecker {
@@ -75,6 +87,9 @@ impl MemoryChecker {
             life_es_map,
             mana_map,
             stats: None,
+            in_town: None,
+            log_buffer: String::new(),
+            log_reader: BufReader::new(Box::new(io::empty())),
         })
     }
 
@@ -119,6 +134,27 @@ impl MemoryChecker {
         {
             if let Some(proc) = utils::open_poe() {
                 self.process = proc;
+                match self.process.file_name() {
+                    Ok(file) => {
+                        let mut path = Path::new(&file).parent().unwrap().to_path_buf();
+                        path.push("logs");
+                        path.push("Client.txt");
+                        match File::open(path) {
+                            Ok(f) => {
+                                self.log_reader = BufReader::new(Box::new(f));
+                                if let Err(e) = self.log_reader.seek(SeekFrom::End(0)) {
+                                    eprintln!("warning: seeking log file failed, will read unnecessary lines: {e}");
+                                }
+                            }
+                            Err(e) => eprintln!(
+                                "warning: could not open log file, log checks won't work: {e}"
+                            ),
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("warning: could not find log file, log checks won't work: {e}")
+                    }
+                }
             } else {
                 return Err("could not find poe running");
             }
@@ -128,6 +164,25 @@ impl MemoryChecker {
             .health()
             .zip(self.mana())
             .map(|(health, mana)| PlayerStats { health, mana });
+
+        self.log_buffer.clear();
+        match self.log_reader.read_line(&mut self.log_buffer) {
+            Ok(n) => {
+                if n != 0 {
+                    if let Some(i) = self.log_buffer.find("]") {
+                        let msg = self.log_buffer[i + 1..].trim();
+                        if msg.starts_with("Generating level") {
+                            let mut matcher = msg.match_indices('"');
+                            if let Some((start, end)) = matcher.next().zip(matcher.next()) {
+                                let level = &msg[start.0 + 1..end.0];
+                                self.in_town = Some(level.ends_with("_town"));
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => eprintln!("warning: failed to read from log file: {e}"),
+        }
 
         Ok(())
     }
@@ -145,6 +200,10 @@ impl MemoryChecker {
         }
 
         None
+    }
+
+    pub fn in_town(&self) -> Option<bool> {
+        self.in_town
     }
 }
 

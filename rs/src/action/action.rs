@@ -1,4 +1,6 @@
-use super::{ActionResult, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition};
+use super::{
+    ActionResult, AreaStatus, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition,
+};
 use crate::utils;
 use std::fmt;
 use std::fs::File;
@@ -104,6 +106,14 @@ impl Action {
                     "mana" => WaitManaValue,
                     "flask" | "key" | "skill" => WaitKeyValue,
                     "wheel" => WaitDirectionValue,
+                    "town" => {
+                        pre.push(PreCondition::InArea { town: true });
+                        WaitKeyword
+                    }
+                    "map" => {
+                        pre.push(PreCondition::InArea { town: false });
+                        WaitKeyword
+                    }
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
@@ -252,24 +262,42 @@ impl Action {
     }
 
     /// Check preconditions.
-    fn check_pre(&self, stats: &PlayerStats, mouse_status: MouseStatus) -> bool {
-        self.pre.iter().all(|p| p.is_valid(stats, mouse_status))
+    fn check_pre(
+        &self,
+        stats: &PlayerStats,
+        mouse_status: MouseStatus,
+        area_status: AreaStatus,
+    ) -> bool {
+        self.pre
+            .iter()
+            .all(|p| p.is_valid(stats, mouse_status, area_status))
     }
 
     /// Returns `true` if `trigger` should be called.
-    fn check(&self, stats: &PlayerStats, mouse_status: MouseStatus) -> bool {
+    fn check(
+        &self,
+        stats: &PlayerStats,
+        mouse_status: MouseStatus,
+        area_status: AreaStatus,
+    ) -> bool {
         self.windup_start.is_some()
-            || ((matches!(self.toggle, Some(true)) || self.check_pre(stats, mouse_status))
+            || ((matches!(self.toggle, Some(true))
+                || self.check_pre(stats, mouse_status, area_status))
                 && self.last_trigger.elapsed() > self.delay)
     }
 
     /// Attempt to toggle the action on or off (if the action is not a one-shot).
-    fn try_toggle(&mut self, stats: &PlayerStats, mouse_status: MouseStatus) {
+    fn try_toggle(
+        &mut self,
+        stats: &PlayerStats,
+        mouse_status: MouseStatus,
+        area_status: AreaStatus,
+    ) {
         if let Some(enabled) = self.toggle {
             // `toggle_pre_held` needs to be false at least once to toggle an action back.
             if self.toggle_pre_held {
-                self.toggle_pre_held = self.check_pre(stats, mouse_status);
-            } else if self.check_pre(stats, mouse_status) {
+                self.toggle_pre_held = self.check_pre(stats, mouse_status, area_status);
+            } else if self.check_pre(stats, mouse_status, area_status) {
                 self.toggle = Some(!enabled);
                 self.toggle_pre_held = true;
             }
@@ -355,6 +383,9 @@ impl ActionSet {
             } else {
                 MouseStatus::default()
             };
+            let area_status = AreaStatus {
+                in_town: self.checker.in_town(),
+            };
 
             let actions = &mut self.actions;
             let inhibit_key_presses = &mut self.inhibit_key_presses;
@@ -363,11 +394,11 @@ impl ActionSet {
             actions
                 .iter_mut()
                 .map(|a| {
-                    a.try_toggle(stats, mouse_status);
+                    a.try_toggle(stats, mouse_status, area_status);
                     a
                 })
                 .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
-                .filter(|a| a.check(stats, mouse_status))
+                .filter(|a| a.check(stats, mouse_status, area_status))
                 .for_each(|a| match a.try_trigger() {
                     TriggerResult::Success(action_result) => {
                         if !a.silent {
