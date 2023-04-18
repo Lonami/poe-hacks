@@ -142,8 +142,9 @@ impl MemoryChecker {
                         match File::open(path) {
                             Ok(f) => {
                                 self.log_reader = BufReader::new(Box::new(f));
-                                if let Err(e) = self.log_reader.seek(SeekFrom::End(0)) {
-                                    eprintln!("warning: seeking log file failed, will read unnecessary lines: {e}");
+                                if let Err(e) = self.log_reader.seek(SeekFrom::End(-16 * 1024)) {
+                                    eprintln!(
+                                    "warning: could not seek log file, may take a while to catch-up: {e}");
                                 }
                             }
                             Err(e) => eprintln!(
@@ -165,10 +166,13 @@ impl MemoryChecker {
             .zip(self.mana())
             .map(|(health, mana)| PlayerStats { health, mana });
 
-        self.log_buffer.clear();
-        match self.log_reader.read_line(&mut self.log_buffer) {
-            Ok(n) => {
-                if n != 0 {
+        loop {
+            self.log_buffer.clear();
+            match self.log_reader.read_line(&mut self.log_buffer) {
+                Ok(n) => {
+                    if n == 0 {
+                        break;
+                    }
                     if let Some(i) = self.log_buffer.find("]") {
                         let msg = self.log_buffer[i + 1..].trim();
                         if msg.starts_with("Generating level") {
@@ -180,8 +184,11 @@ impl MemoryChecker {
                         }
                     }
                 }
+                Err(e) => {
+                    eprintln!("warning: failed to read from log file: {e}");
+                    break;
+                }
             }
-            Err(e) => eprintln!("warning: failed to read from log file: {e}"),
         }
 
         Ok(())
