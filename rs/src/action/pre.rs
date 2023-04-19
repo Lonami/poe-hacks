@@ -11,6 +11,7 @@ pub enum PreCondition {
     KeyPress { vk: u16 },
     MouseWheel { dir: Direction },
     InArea { town: bool },
+    JustTransitioned,
 }
 
 impl PreCondition {
@@ -30,6 +31,7 @@ impl PreCondition {
                 Direction::Down => mouse_status.scrolled_down,
             },
             Self::InArea { town } => area_status.in_town.map_or(false, |x| *town == x),
+            Self::JustTransitioned => area_status.just_transitioned,
         }
     }
 }
@@ -50,6 +52,7 @@ impl fmt::Display for PreCondition {
                 }
             ),
             Self::InArea { town } => write!(f, "{}", if *town { "town" } else { "map" }),
+            Self::JustTransitioned => write!(f, "transition"),
         }
     }
 }

@@ -114,6 +114,10 @@ impl Action {
                         pre.push(PreCondition::InArea { town: false });
                         WaitKeyword
                     }
+                    "transition" => {
+                        pre.push(PreCondition::JustTransitioned);
+                        WaitKeyword
+                    }
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
@@ -385,6 +389,7 @@ impl ActionSet {
             };
             let area_status = AreaStatus {
                 in_town: self.checker.in_town(),
+                just_transitioned: self.checker.just_transitioned(),
             };
 
             let actions = &mut self.actions;

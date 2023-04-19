@@ -15,6 +15,7 @@ pub struct MouseStatus {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AreaStatus {
     pub in_town: Option<bool>,
+    pub just_transitioned: bool,
 }
 
 // In-memory structures for the memory checker.
@@ -52,6 +53,7 @@ pub struct MemoryChecker {
     mana_map: win::proc::PtrMap,
     stats: Option<PlayerStats>,
     in_town: Option<bool>,
+    just_transitioned: bool,
     log_buffer: String,
     log_reader: BufReader<Box<dyn ReadSeek>>,
 }
@@ -88,6 +90,7 @@ impl MemoryChecker {
             mana_map,
             stats: None,
             in_town: None,
+            just_transitioned: false,
             log_buffer: String::new(),
             log_reader: BufReader::new(Box::new(io::empty())),
         })
@@ -166,6 +169,8 @@ impl MemoryChecker {
             .zip(self.mana())
             .map(|(health, mana)| PlayerStats { health, mana });
 
+        self.just_transitioned = false;
+
         loop {
             self.log_buffer.clear();
             match self.log_reader.read_line(&mut self.log_buffer) {
@@ -176,6 +181,7 @@ impl MemoryChecker {
                     if let Some(i) = self.log_buffer.find("]") {
                         let msg = self.log_buffer[i + 1..].trim();
                         if msg.starts_with("Generating level") {
+                            self.just_transitioned = true;
                             let mut matcher = msg.match_indices('"');
                             if let Some((start, end)) = matcher.next().zip(matcher.next()) {
                                 let level = &msg[start.0 + 1..end.0];
@@ -211,6 +217,10 @@ impl MemoryChecker {
 
     pub fn in_town(&self) -> Option<bool> {
         self.in_town
+    }
+
+    pub fn just_transitioned(&self) -> bool {
+        self.just_transitioned
     }
 }
 
