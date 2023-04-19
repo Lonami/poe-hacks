@@ -17,6 +17,9 @@ const DEFAULT_ACTION_WINDUP: Duration = Duration::ZERO;
 #[derive(Debug, PartialEq)]
 struct Action {
     pre: Vec<PreCondition>,
+    /// The boolean remembers which preconditions have been true at some point,
+    /// and are reset once the action is triggered.
+    after_pre: Vec<(PreCondition, bool)>,
     post: PostCondition,
     last_trigger: Instant,
     delay: Duration,
@@ -54,6 +57,7 @@ impl Action {
         }
 
         let mut pre: Vec<PreCondition> = Vec::new();
+        let mut after_pre: Vec<usize> = Vec::new(); // which `pre` are actually `after`
         let mut post: Option<PostCondition> = None;
         let mut delay = DEFAULT_ACTION_DELAY;
         let mut after = DEFAULT_ACTION_WINDUP;
@@ -92,7 +96,11 @@ impl Action {
                         WaitPostKind
                     }
                     "every" => WaitDelayValue,
-                    "after" => WaitAfterValue,
+                    "after" => {
+                        // tentatively guess the next word will be a new precondition
+                        after_pre.push(pre.len());
+                        WaitAfterValue
+                    }
                     "silent" => {
                         silent = true;
                         WaitKeyword
@@ -100,7 +108,7 @@ impl Action {
                     _ => return Err(format!("found unexpected keyword '{}'", word)),
                 },
 
-                WaitPreKind => match word {
+                WaitPreKind | WaitAfterValue => match word {
                     "life" => WaitLifeValue,
                     "es" => WaitEsValue,
                     "mana" => WaitManaValue,
@@ -116,6 +124,12 @@ impl Action {
                     }
                     "transition" => {
                         pre.push(PreCondition::JustTransitioned);
+                        WaitKeyword
+                    }
+                    _ if matches!(state, WaitAfterValue) => {
+                        // next word wasn't a new precondition. it must be a delay
+                        after_pre.pop();
+                        after = utils::parse_duration(word)?;
                         WaitKeyword
                     }
                     _ => return Err(format!("found unknown condition '{}'", word)),
@@ -216,32 +230,18 @@ impl Action {
                     WaitPostRemaining
                 }
 
-                WaitDelayValue | WaitAfterValue => {
-                    let (number, factor) = if word.ends_with("ms") {
-                        (&word[..word.len() - 2], 1)
-                    } else if word.ends_with("s") {
-                        (&word[..word.len() - 1], 1000)
-                    } else if word == "0" {
-                        (word, 0)
-                    } else {
-                        return Err(format!("found unknown duration '{}' without ms", word));
-                    };
-
-                    let duration = Duration::from_millis(match number.parse::<u64>() {
-                        Ok(value) => value * factor,
-                        Err(_) => return Err(format!("found unknown duration value '{}'", word)),
-                    });
-
-                    match &state {
-                        WaitDelayValue => delay = duration,
-                        WaitAfterValue => after = duration,
-                        _ => unreachable!(),
-                    }
-
+                WaitDelayValue => {
+                    delay = utils::parse_duration(word)?;
                     WaitKeyword
                 }
             }
         }
+
+        let after_pre = after_pre
+            .into_iter()
+            .rev()
+            .map(|i| (pre.remove(i), false))
+            .collect();
 
         if pre.is_empty() {
             return Err("it has no trigger condition".into());
@@ -253,6 +253,7 @@ impl Action {
 
         Ok(Some(Action {
             pre,
+            after_pre,
             post,
             delay,
             windup_time: after,
@@ -272,9 +273,13 @@ impl Action {
         mouse_status: MouseStatus,
         area_status: AreaStatus,
     ) -> bool {
-        self.pre
+        self.after_pre
             .iter()
-            .all(|p| p.is_valid(stats, mouse_status, area_status))
+            .all(|(_, previously_true)| *previously_true)
+            && self
+                .pre
+                .iter()
+                .all(|p| p.is_valid(stats, mouse_status, area_status))
     }
 
     /// Returns `true` if `trigger` should be called.
@@ -291,12 +296,22 @@ impl Action {
     }
 
     /// Attempt to toggle the action on or off (if the action is not a one-shot).
+    ///
+    /// It's also used to enable the checks needed prior to running pre-conditions.
     fn try_toggle(
         &mut self,
         stats: &PlayerStats,
         mouse_status: MouseStatus,
         area_status: AreaStatus,
     ) {
+        self.after_pre
+            .iter_mut()
+            .for_each(|(pre, previously_true)| {
+                if !*previously_true {
+                    *previously_true = pre.is_valid(stats, mouse_status, area_status);
+                }
+            });
+
         if let Some(enabled) = self.toggle {
             // `toggle_pre_held` needs to be false at least once to toggle an action back.
             if self.toggle_pre_held {
@@ -310,6 +325,9 @@ impl Action {
 
     /// Trigger the action.
     fn trigger(&mut self) -> Result<ActionResult, &'static str> {
+        self.after_pre
+            .iter_mut()
+            .for_each(|(_, previously_true)| *previously_true = false);
         self.last_trigger = Instant::now();
         self.post.act()
     }
@@ -465,6 +483,9 @@ impl fmt::Display for Action {
         for p in self.pre.iter() {
             write!(f, "on {} ", p)?;
         }
+        for (p, _) in self.after_pre.iter() {
+            write!(f, "after {} ", p)?;
+        }
         if self.delay != DEFAULT_ACTION_DELAY {
             write!(f, "every {}ms ", self.delay.as_millis())?;
         }
@@ -576,6 +597,14 @@ mod tests {
     }
 
     #[test]
+    fn after_pre() {
+        assert_eq!(
+            action("on key 0x01 after transition do flask 2 every 0").after_pre,
+            vec![(PreCondition::JustTransitioned, false)]
+        );
+    }
+
+    #[test]
     fn key() {
         assert_eq!(
             action("on key z do disconnect").pre,
@@ -617,6 +646,7 @@ mod tests {
             let parsed = action(line);
             let reparsed = action(&parsed.to_string());
             assert_eq!(parsed.pre, reparsed.pre);
+            assert_eq!(parsed.after_pre, reparsed.after_pre);
             assert_eq!(parsed.post, reparsed.post);
             assert_eq!(parsed.delay, reparsed.delay);
             assert_eq!(parsed.windup_time, reparsed.windup_time);
@@ -630,7 +660,7 @@ mod tests {
         parse_self("on mana 50% do disconnect every 200ms");
         parse_self("do disconnect every 200ms on mana 1000");
         parse_self("every 200ms on key z do type test after 50ms");
-        parse_self("do destroy on key Z every 200ms");
+        parse_self("do destroy on key Z every 200ms after transition");
         parse_self("on key A do disable silent");
         parse_self("on key B do enable");
     }

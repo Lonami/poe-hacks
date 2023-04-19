@@ -1,5 +1,6 @@
 use crate::win;
 use std::fmt;
+use std::time::Duration;
 use winapi::um::winuser::VK_F1;
 
 const POE_EXE: &'static str = "PathOfExile";
@@ -73,6 +74,23 @@ pub fn parse_click(word: &str) -> Result<win::mouse::Button, &'static str> {
         "middle" | "3" => win::mouse::Button::Middle,
         _ => return Err("click can only be left, right or middle"),
     })
+}
+
+pub fn parse_duration(word: &str) -> Result<Duration, String> {
+    let (number, factor) = if word.ends_with("ms") {
+        (&word[..word.len() - 2], 1)
+    } else if word.ends_with("s") {
+        (&word[..word.len() - 1], 1000)
+    } else if word == "0" {
+        (word, 0)
+    } else {
+        return Err(format!("found unknown duration '{}' without ms", word));
+    };
+
+    Ok(Duration::from_millis(match number.parse::<u64>() {
+        Ok(value) => value * factor,
+        Err(_) => return Err(format!("found unknown duration value '{}'", word)),
+    }))
 }
 
 pub fn open_poe() -> Option<win::proc::Process> {

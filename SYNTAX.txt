@@ -19,6 +19,7 @@ there are several keywords which you can use in every line:
 * toggle. this behaves like "do", but it will toggle the action on to keep running until it's toggled off.
 * every. this will add a delay to a rule (meaning it will wait for some time before executing again).
 * after. this will add a windup time to a rule (meaning it will wait for some time before actually executing it).
+  you can also write an extra precondition instead, which must be true before "on" is checked.
 * silent. this will make the action not show (if it's too spammy).
 
 after a keyword, you have to configure the specifics.
@@ -88,6 +89,9 @@ on key W do key R every 8000ms after 500ms
 on key F4 do invite
 on key F5 do type /hideout
 on key F6 do destroy
+
+// press flasks after entering a map on leftclick
+on map on key 0x01 after transition do flask 2 every 0
 
 // disable keys on pressing enter, enable them on leftclick
 on key 0x0D do disable
