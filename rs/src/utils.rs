@@ -67,6 +67,14 @@ pub fn parse_direction(word: &str) -> Result<Direction, &'static str> {
     })
 }
 
+pub fn parse_open(word: &str) -> Result<bool, &'static str> {
+    Ok(match word {
+        "open" | "opened" => true,
+        "close" | "closed" => false,
+        _ => return Err("opened can only be open or closed"),
+    })
+}
+
 pub fn parse_click(word: &str) -> Result<win::mouse::Button, &'static str> {
     Ok(match word {
         "left" | "1" => win::mouse::Button::Left,

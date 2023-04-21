@@ -1,5 +1,6 @@
 use super::{
     ActionResult, AreaStatus, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition,
+    ScreenChecker
 };
 use crate::utils;
 use std::fmt;
@@ -41,6 +42,7 @@ pub struct ActionSet {
     inhibit_key_presses: bool,
     created: Instant,
     mouse_hook: bool,
+    screen_checker: Option<ScreenChecker>,
 }
 
 enum TriggerResult {
@@ -73,6 +75,7 @@ impl Action {
             WaitManaValue,
             WaitKeyValue,
             WaitDirectionValue,
+            WaitChatValue,
 
             WaitPostKind,
             WaitPostValue,
@@ -126,6 +129,7 @@ impl Action {
                         pre.push(PreCondition::JustTransitioned);
                         WaitKeyword
                     }
+                    "chat" => WaitChatValue,
                     _ if matches!(state, WaitAfterValue) => {
                         // next word wasn't a new precondition. it must be a delay
                         after_pre.pop();
@@ -158,6 +162,12 @@ impl Action {
                 WaitDirectionValue => {
                     pre.push(PreCondition::MouseWheel {
                         dir: utils::parse_direction(word)?,
+                    });
+                    WaitKeyword
+                }
+                WaitChatValue => {
+                    pre.push(PreCondition::Chat {
+                        open: utils::parse_open(word)?,
                     });
                     WaitKeyword
                 }
@@ -389,12 +399,26 @@ impl ActionSet {
                 .any(|p| matches!(p, PreCondition::MouseWheel { .. }))
         });
 
+        let screen_checks = actions.iter().any(|a| {
+            a.pre
+                .iter()
+                .chain(a.after_pre.iter().map(|(p, _)| p))
+                .any(|p| matches!(p, PreCondition::Chat { .. }))
+        });
+
+        let screen_checker = if screen_checks {
+            Some(ScreenChecker::install())
+        } else {
+            None
+        };
+
         Ok(ActionSet {
             checker,
             actions,
             inhibit_key_presses: false,
             created: Instant::now(),
             mouse_hook,
+            screen_checker,
         })
     }
 
@@ -409,6 +433,7 @@ impl ActionSet {
             let area_status = AreaStatus {
                 in_town: self.checker.in_town(),
                 just_transitioned: self.checker.just_transitioned(),
+                chat_open: self.screen_checker.as_mut().map(|sc| sc.chat_open()).unwrap_or(false),
             };
 
             let actions = &mut self.actions;
@@ -662,6 +687,7 @@ mod tests {
         parse_self("do disconnect every 200ms on mana 1000");
         parse_self("every 200ms on key z do type test after 50ms");
         parse_self("do destroy on key Z every 200ms after transition");
+        parse_self("on chat open after chat closed do disable");
         parse_self("on key A do disable silent");
         parse_self("on key B do enable");
     }

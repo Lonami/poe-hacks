@@ -194,6 +194,8 @@ fn run() {
         }
         last = now;
         sleep(DELAY);
+        // TODO maybe both checkers could be async tbh
+        // as long as oneshot events aren't missed
         match actions.checker.refresh() {
             Ok(_) => actions.check_all(),
             Err(e) => eprintln!("warning: failed to refresh checker: {}", e),

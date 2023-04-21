@@ -16,6 +16,7 @@ pub struct MouseStatus {
 pub struct AreaStatus {
     pub in_town: Option<bool>,
     pub just_transitioned: bool,
+    pub chat_open: bool,
 }
 
 // In-memory structures for the memory checker.

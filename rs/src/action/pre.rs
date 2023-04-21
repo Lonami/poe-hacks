@@ -12,6 +12,7 @@ pub enum PreCondition {
     MouseWheel { dir: Direction },
     InArea { town: bool },
     JustTransitioned,
+    Chat { open: bool },
 }
 
 impl PreCondition {
@@ -32,6 +33,7 @@ impl PreCondition {
             },
             Self::InArea { town } => area_status.in_town.map_or(false, |x| *town == x),
             Self::JustTransitioned => area_status.just_transitioned,
+            Self::Chat { open } => *open == area_status.chat_open,
         }
     }
 }
@@ -53,6 +55,7 @@ impl fmt::Display for PreCondition {
             ),
             Self::InArea { town } => write!(f, "{}", if *town { "town" } else { "map" }),
             Self::JustTransitioned => write!(f, "transition"),
+            Self::Chat { open } => write!(f, "chat {}", if *open { "open" } else { "closed" }),
         }
     }
 }
