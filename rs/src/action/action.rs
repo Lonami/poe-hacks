@@ -385,6 +385,7 @@ impl ActionSet {
         let mouse_hook = actions.iter().any(|a| {
             a.pre
                 .iter()
+                .chain(a.after_pre.iter().map(|(p, _)| p))
                 .any(|p| matches!(p, PreCondition::MouseWheel { .. }))
         });
 
