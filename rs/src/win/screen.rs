@@ -38,6 +38,7 @@ pub struct Rect {
 #[derive(Clone)]
 pub struct Screenshot {
     pub region: Rect,
+    row_size: usize,
     colors: Box<[u8]>,
 }
 
@@ -51,15 +52,22 @@ pub struct Screen {
 
 impl Screenshot {
     fn new(region: Rect) -> Self {
-        let size = region.height * region.width;
+        // https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdibits
+        // The scan lines must be aligned on a DWORD except for RLE compressed bitmaps.
+        // Else "exit code: 0xc0000374, STATUS_HEAP_CORRUPTION" will occur,
+        // because `GetDIBits` will attempt to write outside the designated buffer.
+        let row_byte_count = region.width * 3; // RGB, 1 byte per
+        let row_size = ((row_byte_count + 3) / 4) * 4; // DWORD, 4 bytes
+        let size = region.height * row_size;
         Self {
             region,
+            row_size,
             colors: vec![0; size].into_boxed_slice(),
         }
     }
 
     pub fn color(&self, x: usize, y: usize) -> (u8, u8, u8) {
-        let i = (y * self.region.width + x) * 3;
+        let i = (y * self.row_size + x) * 3;
         (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
     }
 
