@@ -42,6 +42,13 @@ pub struct Screenshot {
     colors: Box<[u8]>,
 }
 
+pub struct ScreenshotIter<'s> {
+    screenshot: &'s Screenshot,
+    y_idx: usize,
+    x_cnt: usize,
+    i: usize,
+}
+
 pub struct Screen {
     dc: HDC,
     dc_mem: HDC,
@@ -69,6 +76,41 @@ impl Screenshot {
     pub fn color(&self, x: usize, y: usize) -> (u8, u8, u8) {
         let i = (y * self.row_size + x) * 3;
         (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
+    }
+
+    pub fn colors(&self) -> ScreenshotIter {
+        ScreenshotIter {
+            screenshot: self,
+            y_idx: 0,
+            x_cnt: 0,
+            i: 0,
+        }
+    }
+}
+
+impl<'s> Iterator for ScreenshotIter<'s> {
+    type Item = (u8, u8, u8);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.i;
+        if i == self.screenshot.colors.len() {
+            return None;
+        }
+
+        self.x_cnt += 1;
+        if self.x_cnt == self.screenshot.region.width {
+            self.x_cnt = 0;
+            self.y_idx += self.screenshot.row_size;
+            self.i = self.y_idx;
+        } else {
+            self.i += 3;
+        }
+
+        Some((
+            self.screenshot.colors[i + 2],
+            self.screenshot.colors[i + 1],
+            self.screenshot.colors[i + 0],
+        ))
     }
 }
 
