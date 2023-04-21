@@ -2,6 +2,7 @@ mod action;
 mod checker;
 mod post;
 mod pre;
+mod screen_checker;
 
 pub use action::ActionSet;
 pub use checker::{
@@ -9,3 +10,4 @@ pub use checker::{
 };
 pub use post::{ActionResult, PostCondition};
 pub use pre::PreCondition;
+pub use screen_checker::ScreenChecker;
