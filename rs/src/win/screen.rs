@@ -70,14 +70,9 @@ impl Screenshot {
         let i = (y * self.row_size + x) * 3;
         (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
     }
-
-    pub fn update_from(&mut self, other: &Screenshot) {
-        self.colors.copy_from_slice(&other.colors);
-    }
 }
 
 impl Screen {
-
     /// Creates a capture of a region in the screen, which can be refreshed to contain data.
     ///
     /// Smaller regions are likely to be faster to refresh (but can still be surprisingly slow, ranging from 2ms to 20ms).
