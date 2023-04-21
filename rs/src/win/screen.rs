@@ -27,14 +27,18 @@ struct WindowDC(HDC);
 // TODO Probably should use https://doc.rust-lang.org/std/ffi/index.html to deal with wide strings
 // TODO Consider publishing this input lib on crates.io?
 
-const ORB_START_Y: f64 = 0.8;
+#[derive(Clone, Debug)]
+pub struct Rect {
+    pub left: usize,
+    pub top: usize,
+    pub width: usize,
+    pub height: usize,
+}
 
 #[derive(Clone)]
 pub struct Screenshot {
-    pub width: usize,
-    pub height: usize,
+    pub region: Rect,
     colors: Box<[u8]>,
-    offset_y: usize,
 }
 
 pub struct Screen {
@@ -46,21 +50,16 @@ pub struct Screen {
 }
 
 impl Screenshot {
-    fn new(width: usize, height: usize, offset_y: usize) -> Self {
+    fn new(region: Rect) -> Self {
+        let size = region.height * region.width;
         Self {
-            width,
-            height,
-            colors: vec![0; height * width * 3].into_boxed_slice(),
-            offset_y,
+            region,
+            colors: vec![0; size].into_boxed_slice(),
         }
     }
 
-    pub fn color(&self, x: f64, y: f64) -> (u8, u8, u8) {
-        let x = (self.width as f64 * x) as usize;
-        let y = ((self.height + self.offset_y) as f64 * y) as usize;
-
-        // Will be out of bounds when selecting colors above the orbs or out of screen
-        let i = ((y - self.offset_y) * self.width + x) * 3;
+    pub fn color(&self, x: usize, y: usize) -> (u8, u8, u8) {
+        let i = (y * self.region.width + x) * 3;
         (self.colors[i + 2], self.colors[i + 1], self.colors[i + 0])
     }
 
@@ -70,14 +69,13 @@ impl Screenshot {
 }
 
 impl Screen {
-    pub fn new() -> Result<Self, &'static str> {
-        let (width, height) = size().unwrap();
-        let offset_y = (ORB_START_Y * height as f64) as usize;
 
-        // On average, taking just 20% of the screen seems to take 5ms less (from 25ms otherwise).
-        // Still quite expensive to get pixels from the screen, but slightly better.
-        // This makes the code highly specialised for that one use case, and won't work beyond that.
-        let height = height - offset_y;
+    /// Creates a capture of a region in the screen, which can be refreshed to contain data.
+    ///
+    /// Smaller regions are likely to be faster to refresh (but can still be surprisingly slow, ranging from 2ms to 20ms).
+    pub fn capture_region(region: Rect) -> Result<Self, &'static str> {
+        let width = region.width as i32;
+        let height = region.height as i32;
 
         let dc = match get_desktop_dc() {
             Some(dc) => dc,
@@ -87,7 +85,7 @@ impl Screen {
         if dc_mem.is_null() {
             return Err("failed to create compatible root dc");
         }
-        let bmp = unsafe { CreateCompatibleBitmap(dc, width as i32, height as i32) as HGDIOBJ };
+        let bmp = unsafe { CreateCompatibleBitmap(dc, width, height) as HGDIOBJ };
         if bmp.is_null() {
             return Err("failed to create compatible bitmap");
         }
@@ -103,10 +101,10 @@ impl Screen {
         bmp_info.bmiHeader.biBitCount = 24;
         bmp_info.bmiHeader.biCompression = BI_RGB;
         bmp_info.bmiHeader.biPlanes = 1;
-        bmp_info.bmiHeader.biHeight = -(height as i32); // a top-down DIB is specified by setting the height to a negative number
-        bmp_info.bmiHeader.biWidth = width as i32;
+        bmp_info.bmiHeader.biHeight = -height; // a top-down DIB is specified by setting the height to a negative number
+        bmp_info.bmiHeader.biWidth = width;
         bmp_info.bmiHeader.biSize = mem::size_of::<BITMAPINFO>() as u32;
-        let screenshot = Screenshot::new(width, height, offset_y);
+        let screenshot = Screenshot::new(region);
 
         Ok(Self {
             dc,
@@ -123,11 +121,11 @@ impl Screen {
                 self.dc_mem,
                 0,
                 0,
-                self.screenshot.width as i32,
-                self.screenshot.height as i32,
+                self.screenshot.region.width as i32,
+                self.screenshot.region.height as i32,
                 self.dc,
-                0,
-                self.screenshot.offset_y as i32,
+                self.screenshot.region.left as i32,
+                self.screenshot.region.top as i32,
                 SRCCOPY,
             )
         };
@@ -139,7 +137,7 @@ impl Screen {
                 self.dc_mem,
                 self.bmp as HBITMAP,
                 0,
-                self.screenshot.height as u32,
+                self.screenshot.region.height as u32,
                 self.screenshot.colors.as_mut_ptr() as LPVOID,
                 &mut self.bmp_info,
                 DIB_RGB_COLORS,
@@ -214,12 +212,12 @@ fn get_desktop_dc() -> Option<HDC> {
     }
 }
 
-/// Gets the primary screen's size as `(width, height)`.
+/// Gets the primary screen's size.
 ///
 /// # References
 ///
 /// https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getdesktopwindow
-pub fn size() -> Result<(usize, usize), Error> {
+pub fn size() -> Result<Rect, Error> {
     unsafe {
         let mut desktop = MaybeUninit::uninit();
         let handle = GetDesktopWindow();
@@ -227,7 +225,12 @@ pub fn size() -> Result<(usize, usize), Error> {
             Err(Error::last_os_error())
         } else {
             let desktop = desktop.assume_init();
-            Ok((desktop.right as usize, desktop.bottom as usize))
+            Ok(Rect {
+                left: desktop.left as usize,
+                top: desktop.top as usize,
+                width: (desktop.right - desktop.left) as usize,
+                height: (desktop.bottom - desktop.top) as usize,
+            })
         }
     }
 }
