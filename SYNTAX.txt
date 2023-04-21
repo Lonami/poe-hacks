@@ -32,6 +32,7 @@ the preconditions for "on" are as follows:
 * wheel. the action will trigger when the mouse wheel is scrolled up or down.
 * town. the action will trigger while you are in town.
 * map. the action will trigger while you are in a non-town area.
+* transition. the action will trigger exactly once after a transition occurs (even if it's between towns or map areas).
 * chat. the action will trigger when chat is "open" or "closed".
 
 the life, mana and es values can be given as a flat number (like 500) or a percentage (30%).
