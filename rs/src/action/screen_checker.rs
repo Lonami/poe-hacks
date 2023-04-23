@@ -22,6 +22,21 @@ pub struct ScreenChecker {
     chat_open: bool,
 }
 
+fn check_chat(screen: &win::screen::Screen) -> Message {
+    let mut longest_run = 0;
+    for color in screen.screenshot().colors() {
+        if color == CHAT_BORDER_COLOR {
+            longest_run += 1;
+            if longest_run >= CHAT_CHECK_HEIGHT * CHAT_BORDER_THICKNESS {
+                return Message::Chat { open: true };
+            }
+        } else {
+            longest_run = 0;
+        }
+    }
+    Message::Chat { open: false }
+}
+
 impl ScreenChecker {
     pub fn install() -> Self {
         let (msg_tx, msg_rx) = mpsc::channel();
@@ -36,25 +51,14 @@ impl ScreenChecker {
 
             loop {
                 let start = Instant::now();
-                screen.refresh().unwrap();
-
-                let mut longest_run = 0;
-                let mut msg = Message::Chat { open: false };
-                for color in screen.screenshot().colors() {
-                    if color == CHAT_BORDER_COLOR {
-                        longest_run += 1;
-                        if longest_run >= CHAT_CHECK_HEIGHT * CHAT_BORDER_THICKNESS {
-                            msg = Message::Chat { open: true };
+                match screen.refresh() {
+                    Ok(_) => {
+                        if msg_tx.send(check_chat(&screen)).is_err() {
                             break;
                         }
-                    } else {
-                        longest_run = 0;
                     }
-                }
-
-                if msg_tx.send(msg).is_err() {
-                    break;
-                }
+                    Err(e) => eprintln!("warning: screen check failed: {}", e),
+                };
 
                 match kill_rx.recv_timeout(DELAY.saturating_sub(start.elapsed())) {
                     Ok(_) => break,
