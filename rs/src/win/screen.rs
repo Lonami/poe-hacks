@@ -317,6 +317,23 @@ pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), Error> {
     }
 }
 
+/// Get the process ID for the owner of the thread with the window in the foreground.
+///
+/// # References
+///
+/// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getforegroundwindow
+/// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowthreadprocessid
+pub fn get_foreground_pid() -> Result<u32, Error> {
+    let hwnd = unsafe { GetForegroundWindow() };
+    let mut proc_id = 0;
+    let thread_id = unsafe { GetWindowThreadProcessId(hwnd, &mut proc_id) };
+    if thread_id == 0 {
+        Err(Error::last_os_error())
+    } else {
+        Ok(thread_id)
+    }
+}
+
 /// Using `CreateWindowExA` without previously having used
 /// `RegisterClassExA` will result in the last error to be
 /// `57f`: `ERROR_CANNOT_FIND_WND_CLASS`.

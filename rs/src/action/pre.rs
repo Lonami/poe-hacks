@@ -13,6 +13,8 @@ pub enum PreCondition {
     InArea { town: bool },
     JustTransitioned,
     Chat { open: bool },
+    WindowFocus,
+    WindowBlur,
 }
 
 impl PreCondition {
@@ -34,6 +36,8 @@ impl PreCondition {
             Self::InArea { town } => area_status.in_town.map_or(false, |x| *town == x),
             Self::JustTransitioned => area_status.just_transitioned,
             Self::Chat { open } => *open == area_status.chat_open,
+            Self::WindowFocus => area_status.in_foreground,
+            Self::WindowBlur => !area_status.in_foreground,
         }
     }
 }
@@ -56,6 +60,8 @@ impl fmt::Display for PreCondition {
             Self::InArea { town } => write!(f, "{}", if *town { "town" } else { "map" }),
             Self::JustTransitioned => write!(f, "transition"),
             Self::Chat { open } => write!(f, "chat {}", if *open { "open" } else { "closed" }),
+            Self::WindowFocus => write!(f, "focus"),
+            Self::WindowBlur => write!(f, "blur"),
         }
     }
 }

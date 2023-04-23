@@ -17,6 +17,7 @@ pub struct AreaStatus {
     pub in_town: Option<bool>,
     pub just_transitioned: bool,
     pub chat_open: bool,
+    pub in_foreground: bool,
 }
 
 // In-memory structures for the memory checker.
@@ -54,6 +55,7 @@ pub struct MemoryChecker {
     mana_map: win::proc::PtrMap,
     stats: Option<PlayerStats>,
     in_town: Option<bool>,
+    in_foreground: bool,
     just_transitioned: bool,
     log_buffer: String,
     log_reader: BufReader<Box<dyn ReadSeek>>,
@@ -91,6 +93,7 @@ impl MemoryChecker {
             mana_map,
             stats: None,
             in_town: None,
+            in_foreground: true,
             just_transitioned: false,
             log_buffer: String::new(),
             log_reader: BufReader::new(Box::new(io::empty())),
@@ -165,6 +168,11 @@ impl MemoryChecker {
             }
         }
 
+        self.in_foreground = match win::screen::get_foreground_pid() {
+            Ok(pid) => pid == self.process.pid,
+            Err(_) => true, // assume true
+        };
+
         self.stats = self
             .health()
             .zip(self.mana())
@@ -222,6 +230,10 @@ impl MemoryChecker {
 
     pub fn just_transitioned(&self) -> bool {
         self.just_transitioned
+    }
+
+    pub fn in_foreground(&self) -> bool {
+        self.in_foreground
     }
 }
 

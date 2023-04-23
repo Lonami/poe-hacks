@@ -34,6 +34,8 @@ the preconditions for "on" are as follows:
 * map. the action will trigger while you are in a non-town area.
 * transition. the action will trigger exactly once after a transition occurs (even if it's between towns or map areas).
 * chat. the action will trigger when chat is "open" or "closed".
+* focus. the action will trigger while the game window has focus.
+* blur. the action will trigger while the game window has lost focus.
 
 the life, mana and es values can be given as a flat number (like 500) or a percentage (30%).
 

@@ -1,6 +1,6 @@
 use super::{
     ActionResult, AreaStatus, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition,
-    ScreenChecker
+    ScreenChecker,
 };
 use crate::utils;
 use std::fmt;
@@ -130,6 +130,14 @@ impl Action {
                         WaitKeyword
                     }
                     "chat" => WaitChatValue,
+                    "focus" => {
+                        pre.push(PreCondition::WindowFocus);
+                        WaitKeyword
+                    }
+                    "blur" => {
+                        pre.push(PreCondition::WindowBlur);
+                        WaitKeyword
+                    }
                     _ if matches!(state, WaitAfterValue) => {
                         // next word wasn't a new precondition. it must be a delay
                         after_pre.pop();
@@ -433,7 +441,12 @@ impl ActionSet {
             let area_status = AreaStatus {
                 in_town: self.checker.in_town(),
                 just_transitioned: self.checker.just_transitioned(),
-                chat_open: self.screen_checker.as_mut().map(|sc| sc.chat_open()).unwrap_or(false),
+                chat_open: self
+                    .screen_checker
+                    .as_mut()
+                    .map(|sc| sc.chat_open())
+                    .unwrap_or(false),
+                in_foreground: self.checker.in_foreground(),
             };
 
             let actions = &mut self.actions;
@@ -690,6 +703,7 @@ mod tests {
         parse_self("on chat open after chat closed do disable");
         parse_self("on key A do disable silent");
         parse_self("on key B do enable");
+        parse_self("on focus after blur do disconnect");
     }
 
     #[test]
