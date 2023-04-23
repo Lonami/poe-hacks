@@ -330,7 +330,7 @@ pub fn get_foreground_pid() -> Result<u32, Error> {
     if thread_id == 0 {
         Err(Error::last_os_error())
     } else {
-        Ok(thread_id)
+        Ok(proc_id)
     }
 }
 
