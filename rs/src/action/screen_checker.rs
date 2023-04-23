@@ -1,7 +1,7 @@
+use crate::win;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
-use crate::win;
 
 const DELAY: Duration = Duration::from_millis(50);
 

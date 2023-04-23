@@ -1,5 +1,5 @@
 #![cfg(windows)]
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::mem::{self, MaybeUninit};
 use std::ptr;
 use winapi::shared::minwindef::{ATOM, DWORD, LPVOID};
@@ -15,9 +15,9 @@ use winapi::um::wingdi::{
 use winapi::um::winnt::LPCSTR;
 use winapi::um::winuser::{
     CreateWindowExA, DefWindowProcA, DestroyWindow, DrawTextA, GetDC, GetDesktopWindow,
-    GetWindowDC, GetWindowRect, RegisterClassExA, ReleaseDC, SetWindowPos, COLOR_WINDOW,
-    CW_USEDEFAULT, DT_CALCRECT, DT_NOCLIP, DT_SINGLELINE, SWP_NOACTIVATE, SWP_NOZORDER,
-    WNDCLASSEXA, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+    GetForegroundWindow, GetWindowDC, GetWindowRect, GetWindowThreadProcessId, RegisterClassExA,
+    ReleaseDC, SetWindowPos, COLOR_WINDOW, CW_USEDEFAULT, DT_CALCRECT, DT_NOCLIP, DT_SINGLELINE,
+    SWP_NOACTIVATE, SWP_NOZORDER, WNDCLASSEXA, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
 };
 
 // Structures used for the automatic `Drop` cleanup
@@ -118,28 +118,37 @@ impl Screen {
     /// Creates a capture of a region in the screen, which can be refreshed to contain data.
     ///
     /// Smaller regions are likely to be faster to refresh (but can still be surprisingly slow, ranging from 2ms to 20ms).
-    pub fn capture_region(region: Rect) -> Result<Self, &'static str> {
+    pub fn capture_region(region: Rect) -> Result<Self, Error> {
         let width = region.width as i32;
         let height = region.height as i32;
 
-        let dc = match get_desktop_dc() {
-            Some(dc) => dc,
-            None => return Err("failed to get root dc"),
-        };
+        let dc = get_desktop_dc()?;
         let dc_mem = unsafe { CreateCompatibleDC(ptr::null_mut()) };
         if dc_mem.is_null() {
-            return Err("failed to create compatible root dc");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "call to CreateCompatibleDC returned null",
+            ));
         }
         let bmp = unsafe { CreateCompatibleBitmap(dc, width, height) as HGDIOBJ };
         if bmp.is_null() {
-            return Err("failed to create compatible bitmap");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "call to CreateCompatibleBitmap returned null",
+            ));
         }
         let so = unsafe { SelectObject(dc_mem, bmp) };
         if so.is_null() {
-            return Err("failed to select object: invalid region");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "call to SelectObject returned null",
+            ));
         }
         if so == HGDI_ERROR {
-            return Err("failed to select object: gdi error");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "call to SelectObject returned HGDI_ERROR",
+            ));
         }
 
         let mut bmp_info: BITMAPINFO = unsafe { mem::zeroed() };
@@ -160,7 +169,7 @@ impl Screen {
         })
     }
 
-    pub fn refresh(&mut self) -> Result<(), &'static str> {
+    pub fn refresh(&mut self) -> Result<(), Error> {
         let res = unsafe {
             BitBlt(
                 self.dc_mem,
@@ -175,7 +184,7 @@ impl Screen {
             )
         };
         if res == 0 {
-            return Err("failed to bit-block transfer screen data");
+            return Err(Error::last_os_error());
         };
         let res = unsafe {
             GetDIBits(
@@ -189,10 +198,16 @@ impl Screen {
             )
         };
         if res == 0 {
-            return Err("failed to get bits from compatible bitmap");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "failed to get bits from compatible bitmap",
+            ));
         }
         if res == ERROR_INVALID_PARAMETER as i32 {
-            return Err("failed to get bits from compatible bitmap: invalid parameter");
+            return Err(Error::new(
+                ErrorKind::Other,
+                "failed to get bits from compatible bitmap: invalid parameter",
+            ));
         }
         Ok(())
     }
@@ -242,17 +257,17 @@ impl Drop for WindowDC {
 
 static mut DESKTOP_DC: HDC = ptr::null_mut();
 
-fn get_desktop_dc() -> Option<HDC> {
+fn get_desktop_dc() -> Result<HDC, Error> {
     // WARNING: NOT THREAD SAFE, BUT THE PROGRAM DOESN'T USE THREADS FOR NOW
     unsafe {
         if DESKTOP_DC.is_null() {
             DESKTOP_DC = GetDC(ptr::null_mut());
         }
         if DESKTOP_DC.is_null() {
-            None
+            Err(Error::new(ErrorKind::Other, "call to GetDC failed"))
         } else {
             // We never release this, but it's fine because it lives for as long as the program does.
-            Some(DESKTOP_DC)
+            Ok(DESKTOP_DC)
         }
     }
 }
@@ -285,22 +300,20 @@ pub fn size() -> Result<Rect, Error> {
 /// # References
 ///
 /// https://docs.microsoft.com/en-us/windows/desktop/api/wingdi/nf-wingdi-getpixel
-pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), &'static str> {
-    unsafe {
-        if let Some(dc) = get_desktop_dc() {
-            let color = GetPixel(dc, x as i32, y as i32);
-            if color != CLR_INVALID {
-                Ok((
-                    ((color >> 0) & 0xff) as u8,
-                    ((color >> 2) & 0xff) as u8,
-                    ((color >> 4) & 0xff) as u8,
-                ))
-            } else {
-                Err("failed to get pixel")
-            }
-        } else {
-            Err("failed to get desktop dc")
-        }
+pub fn color(x: usize, y: usize) -> Result<(u8, u8, u8), Error> {
+    let dc = get_desktop_dc()?;
+    let color = unsafe { GetPixel(dc, x as i32, y as i32) };
+    if color != CLR_INVALID {
+        Ok((
+            ((color >> 0) & 0xff) as u8,
+            ((color >> 2) & 0xff) as u8,
+            ((color >> 4) & 0xff) as u8,
+        ))
+    } else {
+        Err(Error::new(
+            ErrorKind::Other,
+            "call to GetPixel returned CLR_INVALID",
+        ))
     }
 }
 
