@@ -61,7 +61,7 @@ impl Action {
         let mut pre: Vec<PreCondition> = Vec::new();
         let mut after_pre: Vec<usize> = Vec::new(); // which `pre` are actually `after`
         let mut post: Option<PostCondition> = None;
-        let mut delay = DEFAULT_ACTION_DELAY;
+        let mut delay = None;
         let mut after = DEFAULT_ACTION_WINDUP;
         let mut silent = false;
         let mut toggle = None;
@@ -249,7 +249,7 @@ impl Action {
                 }
 
                 WaitDelayValue => {
-                    delay = utils::parse_duration(word)?;
+                    delay = Some(utils::parse_duration(word)?);
                     WaitKeyword
                 }
             }
@@ -268,6 +268,11 @@ impl Action {
             Some(post) => post,
             None => return Err("it has no action to perform".into()),
         };
+
+        let delay = delay.unwrap_or_else(|| match post {
+            PostCondition::SetKeySuppression { .. } => Duration::default(),
+            _ => DEFAULT_ACTION_DELAY,
+        });
 
         Ok(Some(Action {
             pre,

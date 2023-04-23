@@ -63,7 +63,7 @@ the postcondition for "do" are as follows:
 * enable. enables rules which press keys ("turns on" the program).
 
 the duration for "every" is always a number ended in "ms" (for milliseconds).
-there is a default duration of 500ms to avoid spamming actions on accident,
+there is a default duration of 500ms to avoid spamming server actions on accident,
 but a lower cooldown can be used if specified manually (such as 250ms).
 you can also end the number in "s" (for seconds, which only works for whole numbers).
 
@@ -98,10 +98,10 @@ on key F6 do destroy
 on map on key 0x01 after transition do flask 2 every 0
 
 // disable keys on opening chat or entering town, enable them on closing chat or entering a map
-on chat open do disable every 0 silent
-on chat closed do enable every 0 silent
-on town do disable every 0 silent
-on map do enable every 0 silent
+on chat open do disable silent
+on chat closed do enable silent
+on town do disable silent
+on map do enable silent
 
 tips
 ----
