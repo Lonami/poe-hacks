@@ -190,12 +190,13 @@ impl MemoryChecker {
                     if let Some(i) = self.log_buffer.find("]") {
                         let msg = self.log_buffer[i + 1..].trim();
                         if msg.starts_with("Generating level") {
-                            self.just_transitioned = true;
                             let mut matcher = msg.match_indices('"');
                             if let Some((start, end)) = matcher.next().zip(matcher.next()) {
                                 let level = &msg[start.0 + 1..end.0];
                                 self.in_town = Some(level.ends_with("_town"));
                             }
+                        } else if msg.starts_with("[SHADER] Delay: ON") {
+                            self.just_transitioned = true; // and finished loading
                         }
                     }
                 }
