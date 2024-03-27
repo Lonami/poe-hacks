@@ -154,20 +154,21 @@ impl Process {
             return None;
         }
 
-        for i in 0..(size as usize / mem::size_of::<DWORD>()).min(pids.capacity()) {
-            let pid = unsafe { *pids.get_unchecked(i) };
-            if pid != 0 {
-                match Process::open(pid) {
-                    Ok(proc) => match proc.name() {
-                        Ok(name) => {
-                            if name.starts_with(starts_with) {
-                                return Some(proc);
-                            }
+        unsafe {
+            pids.set_len((size as usize / mem::size_of::<DWORD>()).min(pids.capacity()));
+        }
+
+        for pid in pids.into_iter().filter(|pid| *pid != 0) {
+            match Process::open(pid) {
+                Ok(proc) => match proc.name() {
+                    Ok(name) => {
+                        if name.starts_with(starts_with) {
+                            return Some(proc);
                         }
-                        _ => continue,
-                    },
+                    }
                     _ => continue,
-                }
+                },
+                _ => continue,
             }
         }
         None
