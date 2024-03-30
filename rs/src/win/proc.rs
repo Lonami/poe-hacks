@@ -366,10 +366,11 @@ pub fn kill_network(pid: u32) -> Result<usize, u32> {
         }
 
         let table = buffer.as_mut_ptr() as PMIB_TCPTABLE_OWNER_PID;
+        let entries = (*table).table.as_ptr();
 
         let mut ok = 0;
         for i in 0..(*table).dwNumEntries as usize {
-            let entry = (*table).table.get_unchecked(i);
+            let entry = *entries.add(i);
             if entry.dwOwningPid == pid {
                 if SetTcpEntry(&mut MIB_TCPROW {
                     dwState: 12, // magic number to terminate
