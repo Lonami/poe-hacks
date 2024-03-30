@@ -4,77 +4,21 @@ use std::mem::{self, MaybeUninit};
 use std::num::ParseIntError;
 use std::ptr::{self, NonNull};
 use std::str::FromStr;
-use winapi::shared::minwindef::{BOOL, DWORD, FALSE, HMODULE, PDWORD, ULONG};
+use winapi::shared::iprtrmib::TCP_TABLE_OWNER_PID_ALL;
+use winapi::shared::minwindef::{DWORD, FALSE, HMODULE};
 use winapi::shared::ntdef::PVOID;
+use winapi::shared::tcpmib::MIB_TCPROW;
+use winapi::shared::tcpmib::PMIB_TCPTABLE_OWNER_PID;
 use winapi::shared::winerror::NO_ERROR;
 use winapi::shared::ws2def::AF_INET;
-use winapi::{ENUM, STRUCT};
-
-const ANY_SIZE: usize = 1;
+use winapi::um::iphlpapi::GetExtendedTcpTable;
+use winapi::um::iphlpapi::SetTcpEntry;
 
 const NO_PROCESS_HANDLE: *mut winapi::ctypes::c_void =
     -1isize as usize as *mut winapi::ctypes::c_void;
 
-// From https://github.com/retep998/winapi-rs/pull/802
-ENUM! {enum TcpTableClass {
-    TCP_TABLE_BASIC_LISTENER = 0,
-    TCP_TABLE_BASIC_CONNECTIONS = 1,
-    TCP_TABLE_BASIC_ALL = 2,
-    TCP_TABLE_OWNER_PID_LISTENER = 3,
-    TCP_TABLE_OWNER_PID_CONNECTIONS = 4,
-    TCP_TABLE_OWNER_PID_ALL = 5,
-    TCP_TABLE_OWNER_MODULE_LISTENER = 6,
-    TCP_TABLE_OWNER_MODULE_CONNECTIONS = 7,
-    TCP_TABLE_OWNER_MODULE_ALL = 8,
-}}
-#[allow(non_camel_case_types)]
-pub type PTCP_TABLE_CLASS = *mut TcpTableClass;
-
-STRUCT! {#[allow(non_snake_case)] struct MIB_TCPROW_OWNER_PID {
-    dwState: DWORD,
-    dwLocalAddr: DWORD,
-    dwLocalPort: DWORD,
-    dwRemoteAddr: DWORD,
-    dwRemotePort: DWORD,
-    dwOwningPid: DWORD,
-}}
-#[allow(non_camel_case_types)]
-pub type PMIB_TCPROW_OWNER_PID = *mut MIB_TCPROW_OWNER_PID;
-
-STRUCT! {#[allow(non_snake_case)] struct MIB_TCPTABLE_OWNER_PID {
-    dwNumEntries: DWORD,
-    table: [MIB_TCPROW_OWNER_PID; ANY_SIZE],
-}}
-#[allow(non_camel_case_types)]
-pub type PMIB_TCPTABLE_OWNER_PID = *mut MIB_TCPTABLE_OWNER_PID;
-
-STRUCT! {#[allow(non_snake_case)] struct MIB_TCPROW {
-    dwState: DWORD,
-    dwLocalAddr: DWORD,
-    dwLocalPort: DWORD,
-    dwRemoteAddr: DWORD,
-    dwRemotePort: DWORD,
-}}
-#[allow(non_camel_case_types)]
-pub type PMIB_TCPROW = *mut MIB_TCPROW;
-
 const SCAN_START: usize = 0x0000000000000000;
 const SCAN_END: usize = 0x00007fffffffffff;
-
-#[link(name = "iphlpapi")]
-extern "system" {
-    // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
-    pub fn GetExtendedTcpTable(
-        pTcpTable: PVOID,
-        pdwSize: PDWORD,
-        bOrder: BOOL,
-        ulAf: ULONG,
-        TableClass: TcpTableClass,
-        Reserved: ULONG,
-    ) -> DWORD;
-
-    pub fn SetTcpEntry(pTcpRow: PMIB_TCPROW) -> DWORD;
-}
 
 // Steps using Cheat Engine:
 // 1. Find life (4 bytes integer, scan for it, get hit, next scan...).
@@ -373,7 +317,7 @@ pub fn kill_network(pid: u32) -> Result<usize, u32> {
             let entry = *entries.add(i);
             if entry.dwOwningPid == pid {
                 if SetTcpEntry(&mut MIB_TCPROW {
-                    dwState: 12, // magic number to terminate
+                    State: 12, // magic number to terminate
                     dwLocalAddr: entry.dwLocalAddr,
                     dwLocalPort: entry.dwLocalPort,
                     dwRemoteAddr: entry.dwRemoteAddr,
