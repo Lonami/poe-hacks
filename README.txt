@@ -16,17 +16,9 @@ for others if you want to know:
 
 if my code is bad, please send a pull request to make it less bad.
 
-memu-helper
------------
-
-(c++ only)
-memuplay.com is a decent android emulator for windows, and this helper assists
-playing https://play.google.com/store/apps/details?id=com.supercell.brawlstars
-...don't judge, it just makes the controls more sane with a good configuration
-
 poe
 ---
 
-(c++, broken python, rust)
+(broken python, rust)
 pathofexile.com is a fun game to play in hardcore, but dying is tough, so this
 code just aids setting a key you can use to fast disconnect when in trouble...
