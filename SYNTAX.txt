@@ -57,8 +57,6 @@ the postcondition for "do" are as follows:
 * price. presses ctrl+c and pricechecks the item on trade.
 * invite. presses ctrl+enter and uses /invite on the last whisper.
 * destroy. left-clicks to select an item, presses enter, types /destroy, and presses enter again.
-* downscale. enables downscaling (currently not working).
-* upscale. disables downscaling (currently not working).
 * disable. disables rules which press keys ("turns off" the program).
 * enable. enables rules which press keys ("turns on" the program).
 

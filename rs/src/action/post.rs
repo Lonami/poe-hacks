@@ -5,17 +5,6 @@ use std::thread::sleep;
 use std::time::Duration;
 use winapi::um::winuser::{VK_HOME, VK_RETURN, VK_RIGHT};
 
-// Where to click to enable/disable downscaling
-/*
-const PARTY_X: f64 = 350.0 / 1920.0;
-const PARTY_Y: f64 = 185.0 / 1080.0;
-
-const DOWNSCALING_SELECT_X: f64 = 500.0 / 1920.0;
-const DOWNSCALING_SELECT_Y: f64 = 800.0 / 1080.0;
-const DOWNSCALING_ENABLE_Y: f64 = 830.0 / 1080.0;
-const DOWNSCALING_DISABLE_Y: f64 = 860.0 / 1080.0;
-*/
-
 const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Debug, PartialEq)]
@@ -26,7 +15,6 @@ pub enum PostCondition {
     Type { string: String },
     InviteLast,
     Destroy,
-    Downscaling { enable: bool },
     SetKeySuppression { suppress: bool },
 }
 
@@ -82,42 +70,6 @@ impl PostCondition {
 
                 Ok(ActionResult::None)
             }
-            Self::Downscaling { enable: _ } => {
-                todo!()
-                /*
-                let (width, height) = ...;
-                let rel_click = |x, y| -> Result<(), &'static str> {
-                    win::mouse::set((x * width as f64) as usize, (y * height as f64) as usize)
-                        .map_err(|_| "failed to move mouse")?;
-
-                    sleep(Duration::from_millis(64));
-                    win::mouse::click(win::mouse::Button::Left);
-
-                Ok(ActionResult::None)
-                };
-
-                let downscaling_select_y = if *enable {
-                    DOWNSCALING_ENABLE_Y
-                } else {
-                    DOWNSCALING_DISABLE_Y
-                };
-
-                let (old_x, old_y) =
-                    win::mouse::get().map_err(|_| "failed to get original mouse pos")?;
-
-                win::keyboard::press(b'S' as u16);
-                sleep(Duration::from_millis(128));
-                rel_click(PARTY_X, PARTY_Y)?;
-                rel_click(DOWNSCALING_SELECT_X, DOWNSCALING_SELECT_Y)?;
-                rel_click(DOWNSCALING_SELECT_X, downscaling_select_y)?;
-                win::keyboard::press(b'S' as u16);
-
-                win::mouse::set(old_x, old_y)
-                    .map_err(|_| "failed to restore original mouse pos")?;
-
-                Ok(ActionResult::None)
-                */
-            }
             Self::SetKeySuppression { suppress } => Ok(ActionResult::SetKeySuppression {
                 suppress: *suppress,
             }),
@@ -134,13 +86,6 @@ impl fmt::Display for PostCondition {
             Self::Type { string } => write!(f, "type {}", string),
             Self::InviteLast => write!(f, "invite"),
             Self::Destroy => write!(f, "destroy"),
-            Self::Downscaling { enable } => {
-                if *enable {
-                    write!(f, "downscale")
-                } else {
-                    write!(f, "upscale")
-                }
-            }
             Self::SetKeySuppression { suppress } => {
                 if *suppress {
                     write!(f, "disable")

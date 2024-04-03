@@ -197,14 +197,6 @@ impl Action {
                         post = Some(PostCondition::Destroy);
                         WaitKeyword
                     }
-                    "downscale" => {
-                        post = Some(PostCondition::Downscaling { enable: true });
-                        WaitKeyword
-                    }
-                    "upscale" => {
-                        post = Some(PostCondition::Downscaling { enable: false });
-                        WaitKeyword
-                    }
                     "disable" => {
                         post = Some(PostCondition::SetKeySuppression { suppress: true });
                         WaitKeyword
