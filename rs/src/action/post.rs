@@ -1,5 +1,5 @@
 use crate::win::mouse::Button as MouseButton;
-use crate::{https, utils, win};
+use crate::{utils, win};
 use std::fmt;
 use std::thread::sleep;
 use std::time::Duration;
@@ -24,7 +24,6 @@ pub enum PostCondition {
     Click { button: MouseButton },
     Disconnect,
     Type { string: String },
-    ShowPrice,
     InviteLast,
     Destroy,
     Downscaling { enable: bool },
@@ -64,52 +63,6 @@ impl PostCondition {
                 win::keyboard::press(VK_RETURN as u16);
                 win::keyboard::type_string(&string);
                 win::keyboard::press(VK_RETURN as u16);
-                Ok(ActionResult::None)
-            }
-            Self::ShowPrice => {
-                // Press Ctrl+C
-                sleep(Duration::from_millis(200));
-                win::keyboard::ctrl_press(b'C' as u16);
-                sleep(Duration::from_millis(200));
-
-                // Extract name from clipboard
-                let clipboard = win::clipboard::get()?;
-                let name = {
-                    let mut it = clipboard.split("\r\n");
-                    it.next();
-                    match it.next() {
-                        Some(x) => x,
-                        None => return Err("copied data does not contain item name"),
-                    }
-                };
-
-                // Search for this item in poe.trade
-                let prices = {
-                    let _tooltip =
-                        win::screen::create_tooltip(&format!("Checking price for {}...", name))
-                            .map_err(|_| "failed to show loading tooltip")?;
-
-                    https::find_unique_prices(name).map_err(|_| "failed to fetch prices")?
-                };
-
-                // Average the first few results
-                let first_results = &prices[..prices.len().min(5)];
-                let avg_price = first_results.iter().sum::<f64>() / first_results.len() as f64;
-
-                // Show a tooltip until the mouse is moved
-                {
-                    let _tooltip = win::screen::create_tooltip(&format!(
-                        "{} is worth {:.1}c",
-                        name, avg_price
-                    ))
-                    .map_err(|_| "failed to show price tooltip")?;
-
-                    let mouse = win::mouse::get().map_err(|_| "failed to detect mouse")?;
-                    while mouse == win::mouse::get().map_err(|_| "failed to detect mouse")? {
-                        sleep(Duration::from_millis(10));
-                    }
-                }
-
                 Ok(ActionResult::None)
             }
             Self::InviteLast => {
@@ -187,7 +140,6 @@ impl fmt::Display for PostCondition {
             ),
             Self::Disconnect => write!(f, "disconnect"),
             Self::Type { string } => write!(f, "type {}", string),
-            Self::ShowPrice => write!(f, "price"),
             Self::InviteLast => write!(f, "invite"),
             Self::Destroy => write!(f, "destroy"),
             Self::Downscaling { enable } => {

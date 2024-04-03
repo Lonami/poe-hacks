@@ -193,10 +193,6 @@ impl Action {
                         });
                         WaitPostRemaining
                     }
-                    "price" => {
-                        post = Some(PostCondition::ShowPrice);
-                        WaitKeyword
-                    }
                     "invite" => {
                         post = Some(PostCondition::InviteLast);
                         WaitKeyword

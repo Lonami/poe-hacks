@@ -1,5 +1,4 @@
 mod action;
-mod https;
 mod utils;
 
 use crate::action::{ActionSet, Health, Mana, MemoryChecker};
@@ -8,9 +7,6 @@ use std::fs;
 use std::io::{self, Write as _};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-
-#[macro_use]
-extern crate lazy_static;
 
 const DELAY: Duration = Duration::from_millis(10);
 const TOO_LONG: Duration = Duration::from_millis(100);
