@@ -1,6 +1,6 @@
 use super::{AreaStatus, MouseStatus, PlayerStats};
-use crate::utils::{Direction, Value};
 use crate::win;
+use rshacks::types::{Direction, Opened, Value, Vk};
 use std::fmt;
 
 #[derive(Debug, PartialEq)]
@@ -8,11 +8,11 @@ pub enum PreCondition {
     LifeBelow { threshold: Value },
     EnergyBelow { threshold: Value },
     ManaBelow { threshold: Value },
-    KeyPress { vk: u16 },
+    KeyPress { vk: Vk },
     MouseWheel { dir: Direction },
     InArea { town: bool },
     JustTransitioned,
-    Chat { open: bool },
+    Chat { open: Opened },
     WindowFocus,
     WindowBlur,
 }
@@ -28,7 +28,7 @@ impl PreCondition {
             Self::LifeBelow { threshold } => checker.life_below(*threshold),
             Self::EnergyBelow { threshold } => checker.es_below(*threshold),
             Self::ManaBelow { threshold } => checker.mana_below(*threshold),
-            Self::KeyPress { vk } => win::keyboard::is_down(*vk),
+            Self::KeyPress { vk } => win::keyboard::is_down(vk.0),
             Self::MouseWheel { dir } => match dir {
                 Direction::Up => mouse_status.scrolled_up,
                 Direction::Down => mouse_status.scrolled_down,
@@ -48,7 +48,7 @@ impl fmt::Display for PreCondition {
             Self::LifeBelow { threshold } => write!(f, "life {}", threshold),
             Self::EnergyBelow { threshold } => write!(f, "es {}", threshold),
             Self::ManaBelow { threshold } => write!(f, "mana {}", threshold),
-            Self::KeyPress { vk } => write!(f, "key 0x{:02X}", vk),
+            Self::KeyPress { vk } => write!(f, "key 0x{:02X}", vk.0),
             Self::MouseWheel { dir } => write!(
                 f,
                 "wheel {}",
@@ -59,7 +59,7 @@ impl fmt::Display for PreCondition {
             ),
             Self::InArea { town } => write!(f, "{}", if *town { "town" } else { "map" }),
             Self::JustTransitioned => write!(f, "transition"),
-            Self::Chat { open } => write!(f, "chat {}", if *open { "open" } else { "closed" }),
+            Self::Chat { open } => write!(f, "chat {open}"),
             Self::WindowFocus => write!(f, "focus"),
             Self::WindowBlur => write!(f, "blur"),
         }

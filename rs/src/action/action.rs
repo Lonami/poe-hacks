@@ -2,7 +2,7 @@ use super::{
     ActionResult, AreaStatus, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition,
     ScreenChecker,
 };
-use crate::utils;
+use rshacks::types::{Delay, Opened};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -11,9 +11,9 @@ use std::time::{Duration, Instant};
 
 // Avoid spamming actions by default,
 // or the server may send "too many actions" on accident.
-const DEFAULT_ACTION_DELAY: Duration = Duration::from_millis(500);
+const DEFAULT_ACTION_DELAY: Delay = Delay(Duration::from_millis(500));
 
-const DEFAULT_ACTION_WINDUP: Duration = Duration::ZERO;
+const DEFAULT_ACTION_WINDUP: Delay = Delay(Duration::ZERO);
 
 #[derive(Debug, PartialEq)]
 struct Action {
@@ -23,9 +23,9 @@ struct Action {
     after_pre: Vec<(PreCondition, bool)>,
     post: PostCondition,
     last_trigger: Instant,
-    delay: Duration,
+    delay: Delay,
     windup_start: Option<Instant>,
-    windup_time: Duration,
+    windup_time: Delay,
     silent: bool,
     /// `Some(toggled on)` if it can be toggled on and off, `None` otherwise (immediate one-shot).
     toggle: Option<bool>,
@@ -141,41 +141,37 @@ impl Action {
                     _ if matches!(state, WaitAfterValue) => {
                         // next word wasn't a new precondition. it must be a delay
                         after_pre.pop();
-                        after = utils::parse_duration(word)?;
+                        after = word.parse()?;
                         WaitKeyword
                     }
                     _ => return Err(format!("found unknown condition '{}'", word)),
                 },
                 WaitLifeValue => {
-                    let threshold = utils::parse_value(word)?;
+                    let threshold = word.parse()?;
                     pre.push(PreCondition::LifeBelow { threshold });
                     WaitKeyword
                 }
                 WaitEsValue => {
-                    let threshold = utils::parse_value(word)?;
+                    let threshold = word.parse()?;
                     pre.push(PreCondition::EnergyBelow { threshold });
                     WaitKeyword
                 }
                 WaitManaValue => {
-                    let threshold = utils::parse_value(word)?;
+                    let threshold = word.parse()?;
                     pre.push(PreCondition::ManaBelow { threshold });
                     WaitKeyword
                 }
                 WaitKeyValue => {
-                    pre.push(PreCondition::KeyPress {
-                        vk: utils::parse_vk(word)?,
-                    });
+                    pre.push(PreCondition::KeyPress { vk: word.parse()? });
                     WaitKeyword
                 }
                 WaitDirectionValue => {
-                    pre.push(PreCondition::MouseWheel {
-                        dir: utils::parse_direction(word)?,
-                    });
+                    pre.push(PreCondition::MouseWheel { dir: word.parse()? });
                     WaitKeyword
                 }
                 WaitChatValue => {
                     pre.push(PreCondition::Chat {
-                        open: utils::parse_open(word)?,
+                        open: word.parse()?,
                     });
                     WaitKeyword
                 }
@@ -220,14 +216,12 @@ impl Action {
                     _ => return Err(format!("found unknown action '{}'", word)),
                 },
                 WaitPostValue => {
-                    post = Some(PostCondition::PressKey {
-                        vk: utils::parse_vk(word)?,
-                    });
+                    post = Some(PostCondition::PressKey { vk: word.parse()? });
                     WaitKeyword
                 }
                 WaitPostClick => {
                     post = Some(PostCondition::Click {
-                        button: utils::parse_click(word)?,
+                        button: word.parse()?,
                     });
                     WaitKeyword
                 }
@@ -245,7 +239,7 @@ impl Action {
                 }
 
                 WaitDelayValue => {
-                    delay = Some(utils::parse_duration(word)?);
+                    delay = Some(word.parse()?);
                     WaitKeyword
                 }
             }
@@ -266,7 +260,7 @@ impl Action {
         };
 
         let delay = delay.unwrap_or_else(|| match post {
-            PostCondition::SetKeySuppression { .. } => Duration::default(),
+            PostCondition::SetKeySuppression { .. } => Delay(Duration::default()),
             _ => DEFAULT_ACTION_DELAY,
         });
 
@@ -276,7 +270,7 @@ impl Action {
             post,
             delay,
             windup_time: after,
-            last_trigger: Instant::now() - delay,
+            last_trigger: Instant::now() - delay.0,
             windup_start: None,
             silent,
             toggle,
@@ -311,7 +305,7 @@ impl Action {
         self.windup_start.is_some()
             || ((matches!(self.toggle, Some(true))
                 || self.check_pre(stats, mouse_status, area_status))
-                && self.last_trigger.elapsed() > self.delay)
+                && self.last_trigger.elapsed() > self.delay.0)
     }
 
     /// Attempt to toggle the action on or off (if the action is not a one-shot).
@@ -355,10 +349,10 @@ impl Action {
     ///
     /// If it has windup, the action will be delayed.
     fn try_trigger(&mut self) -> TriggerResult {
-        if self.windup_time > Duration::ZERO {
+        if self.windup_time.0 > Duration::ZERO {
             let now = Instant::now();
             if let Some(start) = self.windup_start {
-                if now < start + self.windup_time {
+                if now < start + self.windup_time.0 {
                     return TriggerResult::Delayed;
                 } else {
                     self.windup_start = None;
@@ -446,7 +440,7 @@ impl ActionSet {
                     .screen_checker
                     .as_mut()
                     .map(|sc| sc.chat_open())
-                    .unwrap_or(false),
+                    .unwrap_or(Opened::Closed),
                 in_foreground: self.checker.in_foreground(),
             };
 
@@ -527,10 +521,10 @@ impl fmt::Display for Action {
             write!(f, "after {} ", p)?;
         }
         if self.delay != DEFAULT_ACTION_DELAY {
-            write!(f, "every {}ms ", self.delay.as_millis())?;
+            write!(f, "every {} ", self.delay)?;
         }
         if self.windup_time != DEFAULT_ACTION_WINDUP {
-            write!(f, "after {}ms ", self.windup_time.as_millis())?;
+            write!(f, "after {} ", self.windup_time)?;
         }
         if self.silent {
             write!(f, "silent ")?;
@@ -541,8 +535,9 @@ impl fmt::Display for Action {
 
 #[cfg(test)]
 mod tests {
+    use rshacks::types::{Value, Vk};
+
     use super::*;
-    use crate::utils::Value;
 
     fn action(line: &str) -> Action {
         Action::from_line(line).unwrap().unwrap()
@@ -631,7 +626,9 @@ mod tests {
     #[test]
     fn after_delay() {
         assert_eq!(
-            action("on life 1000 do disconnect every 1000ms after 140ms").windup_time,
+            action("on life 1000 do disconnect every 1000ms after 140ms")
+                .windup_time
+                .0,
             Duration::from_millis(140)
         );
     }
@@ -648,23 +645,23 @@ mod tests {
     fn key() {
         assert_eq!(
             action("on key z do disconnect").pre,
-            vec![PreCondition::KeyPress { vk: 0x5A }]
+            vec![PreCondition::KeyPress { vk: Vk(0x5A) }]
         );
         assert_eq!(
             action("on key Z do disconnect").pre,
-            vec![PreCondition::KeyPress { vk: 0x5A }]
+            vec![PreCondition::KeyPress { vk: Vk(0x5A) }]
         );
         assert_eq!(
             action("on key 6 do disconnect").pre,
-            vec![PreCondition::KeyPress { vk: 0x36 }]
+            vec![PreCondition::KeyPress { vk: Vk(0x36) }]
         );
         assert_eq!(
             action("on key F11 do disconnect").pre,
-            vec![PreCondition::KeyPress { vk: 0x7A }]
+            vec![PreCondition::KeyPress { vk: Vk(0x7A) }]
         );
         assert_eq!(
             action("on key 0x2 do disconnect").pre,
-            vec![PreCondition::KeyPress { vk: 0x02 }]
+            vec![PreCondition::KeyPress { vk: Vk(0x02) }]
         );
     }
 

@@ -1,5 +1,7 @@
-use crate::utils::{self, Value};
+use crate::utils;
 use crate::win;
+use rshacks::types::Opened;
+use rshacks::types::Value;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
@@ -16,7 +18,7 @@ pub struct MouseStatus {
 pub struct AreaStatus {
     pub in_town: Option<bool>,
     pub just_transitioned: bool,
-    pub chat_open: bool,
+    pub chat_open: Opened,
     pub in_foreground: bool,
 }
 

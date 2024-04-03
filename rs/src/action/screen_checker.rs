@@ -1,4 +1,5 @@
 use crate::win;
+use rshacks::types::Opened;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -12,14 +13,14 @@ const CHAT_BORDER_COLOR: (u8, u8, u8) = (136, 98, 59);
 const CHAT_CHECK_HEIGHT: usize = 32;
 
 enum Message {
-    Chat { open: bool },
+    Chat { open: Opened },
 }
 
 pub struct ScreenChecker {
     rx: mpsc::Receiver<Message>,
     tx: mpsc::Sender<()>,
     handle: thread::JoinHandle<()>,
-    chat_open: bool,
+    chat_open: Opened,
 }
 
 fn check_chat(screen: &win::screen::Screen) -> Message {
@@ -28,13 +29,15 @@ fn check_chat(screen: &win::screen::Screen) -> Message {
         if color == CHAT_BORDER_COLOR {
             longest_run += 1;
             if longest_run >= CHAT_CHECK_HEIGHT * CHAT_BORDER_THICKNESS {
-                return Message::Chat { open: true };
+                return Message::Chat { open: Opened::Open };
             }
         } else {
             longest_run = 0;
         }
     }
-    Message::Chat { open: false }
+    Message::Chat {
+        open: Opened::Closed,
+    }
 }
 
 impl ScreenChecker {
@@ -71,7 +74,7 @@ impl ScreenChecker {
             rx: msg_rx,
             tx: kill_tx,
             handle,
-            chat_open: false,
+            chat_open: Opened::Closed,
         }
     }
 
@@ -81,12 +84,12 @@ impl ScreenChecker {
         self.handle.join()
     }
 
-    pub fn chat_open(&mut self) -> bool {
+    pub fn chat_open(&mut self) -> Opened {
         loop {
             match self.rx.try_recv() {
                 Ok(Message::Chat { open }) => self.chat_open = open,
                 Err(mpsc::TryRecvError::Empty) => break,
-                Err(mpsc::TryRecvError::Disconnected) => self.chat_open = false,
+                Err(mpsc::TryRecvError::Disconnected) => self.chat_open = Opened::Closed,
             }
         }
 

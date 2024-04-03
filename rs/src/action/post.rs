@@ -1,5 +1,5 @@
-use crate::win::mouse::Button as MouseButton;
 use crate::{utils, win};
+use rshacks::types::{MouseButton, Vk};
 use std::fmt;
 use std::thread::sleep;
 use std::time::Duration;
@@ -20,7 +20,7 @@ const DISCONNECT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Debug, PartialEq)]
 pub enum PostCondition {
-    PressKey { vk: u16 },
+    PressKey { vk: Vk },
     Click { button: MouseButton },
     Disconnect,
     Type { string: String },
@@ -40,11 +40,11 @@ impl PostCondition {
     pub fn act(&self) -> Result<ActionResult, &'static str> {
         match self {
             Self::PressKey { vk } => {
-                win::keyboard::press(*vk);
+                win::keyboard::press(vk.0);
                 Ok(ActionResult::None)
             }
             Self::Click { button } => {
-                win::mouse::click(*button);
+                win::mouse::click(button.0);
                 Ok(ActionResult::None)
             }
             Self::Disconnect => match utils::open_poe() {
@@ -128,16 +128,8 @@ impl PostCondition {
 impl fmt::Display for PostCondition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PressKey { vk } => write!(f, "press 0x{:02X}", vk),
-            Self::Click { button } => write!(
-                f,
-                "press {}",
-                match button {
-                    MouseButton::Left => "left",
-                    MouseButton::Right => "right",
-                    MouseButton::Middle => "middle",
-                }
-            ),
+            Self::PressKey { vk } => write!(f, "press {vk}"),
+            Self::Click { button } => write!(f, "press {button}"),
             Self::Disconnect => write!(f, "disconnect"),
             Self::Type { string } => write!(f, "type {}", string),
             Self::InviteLast => write!(f, "invite"),
