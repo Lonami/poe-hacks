@@ -7,6 +7,15 @@ pub enum Value {
     Flat(i32),
 }
 
+impl Value {
+    pub fn above(&self, current: i32, max: i32) -> bool {
+        match self {
+            Value::Percent(percent) => current <= (percent * max as f32) as i32,
+            Value::Flat(flat) => current <= *flat,
+        }
+    }
+}
+
 impl FromStr for Value {
     type Err = &'static str;
 

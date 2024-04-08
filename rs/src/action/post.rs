@@ -1,5 +1,6 @@
-use crate::{utils, win};
+use crate::win;
 use rshacks::types::{MouseButton, Vk};
+use rshacks::win::proc::Process;
 use std::fmt;
 use std::thread::sleep;
 use std::time::Duration;
@@ -19,39 +20,36 @@ pub enum PostCondition {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ActionResult {
+pub enum PostResult {
     None,
     SetKeySuppression { suppress: bool },
 }
 
 impl PostCondition {
-    pub fn act(&self) -> Result<ActionResult, &'static str> {
+    pub fn act(&self, process: &Process) -> Result<PostResult, &'static str> {
         match self {
             Self::PressKey { vk } => {
                 win::keyboard::press(vk.0);
-                Ok(ActionResult::None)
+                Ok(PostResult::None)
             }
             Self::Click { button } => {
                 win::mouse::click(button.0);
-                Ok(ActionResult::None)
+                Ok(PostResult::None)
             }
-            Self::Disconnect => match utils::open_poe() {
-                None => Err("could not find poe running"),
-                Some(proc) => match win::proc::kill_network(proc.pid) {
-                    Err(_) => Err("failed to kill poe network"),
-                    Ok(n) => {
-                        if n > 0 {
-                            sleep(DISCONNECT_DELAY);
-                        }
-                        Ok(ActionResult::None)
+            Self::Disconnect => match win::proc::kill_network(process.pid) {
+                Err(_) => Err("failed to kill poe network"),
+                Ok(n) => {
+                    if n > 0 {
+                        sleep(DISCONNECT_DELAY);
                     }
-                },
+                    Ok(PostResult::None)
+                }
             },
             Self::Type { string } => {
                 win::keyboard::press(VK_RETURN as u16);
                 win::keyboard::type_string(&string);
                 win::keyboard::press(VK_RETURN as u16);
-                Ok(ActionResult::None)
+                Ok(PostResult::None)
             }
             Self::InviteLast => {
                 win::keyboard::ctrl_press(VK_RETURN as u16);
@@ -60,7 +58,7 @@ impl PostCondition {
                 win::keyboard::type_string("/invite ");
                 win::keyboard::ctrl_press(VK_RETURN as u16);
 
-                Ok(ActionResult::None)
+                Ok(PostResult::None)
             }
             Self::Destroy => {
                 win::mouse::click(win::mouse::Button::Left);
@@ -68,9 +66,9 @@ impl PostCondition {
                 win::keyboard::type_string("/destroy");
                 win::keyboard::ctrl_press(VK_RETURN as u16);
 
-                Ok(ActionResult::None)
+                Ok(PostResult::None)
             }
-            Self::SetKeySuppression { suppress } => Ok(ActionResult::SetKeySuppression {
+            Self::SetKeySuppression { suppress } => Ok(PostResult::SetKeySuppression {
                 suppress: *suppress,
             }),
         }

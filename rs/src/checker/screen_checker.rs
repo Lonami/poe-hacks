@@ -1,5 +1,5 @@
+use crate::types::Opened;
 use crate::win;
-use rshacks::types::Opened;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,8 +19,12 @@ enum Message {
 pub struct ScreenChecker {
     rx: mpsc::Receiver<Message>,
     tx: mpsc::Sender<()>,
-    handle: thread::JoinHandle<()>,
+    handle: Option<thread::JoinHandle<()>>,
     chat_open: Opened,
+}
+
+pub struct ScreenState {
+    pub chat_open: Opened,
 }
 
 fn check_chat(screen: &win::screen::Screen) -> Message {
@@ -41,7 +45,7 @@ fn check_chat(screen: &win::screen::Screen) -> Message {
 }
 
 impl ScreenChecker {
-    pub fn install() -> Self {
+    pub fn new() -> Self {
         let (msg_tx, msg_rx) = mpsc::channel();
         let (kill_tx, kill_rx) = mpsc::channel();
 
@@ -73,18 +77,12 @@ impl ScreenChecker {
         Self {
             rx: msg_rx,
             tx: kill_tx,
-            handle,
+            handle: Some(handle),
             chat_open: Opened::Closed,
         }
     }
 
-    #[allow(dead_code)]
-    pub fn uninstall(self) -> thread::Result<()> {
-        let _ = self.tx.send(());
-        self.handle.join()
-    }
-
-    pub fn chat_open(&mut self) -> Opened {
+    pub fn check(&mut self) -> ScreenState {
         loop {
             match self.rx.try_recv() {
                 Ok(Message::Chat { open }) => self.chat_open = open,
@@ -93,6 +91,15 @@ impl ScreenChecker {
             }
         }
 
-        self.chat_open
+        ScreenState {
+            chat_open: self.chat_open,
+        }
+    }
+}
+
+impl Drop for ScreenChecker {
+    fn drop(&mut self) {
+        let _ = self.tx.send(());
+        self.handle.take().unwrap().join().unwrap();
     }
 }

@@ -1,13 +1,10 @@
-use super::{
-    ActionResult, AreaStatus, MemoryChecker, MouseStatus, PlayerStats, PostCondition, PreCondition,
-    ScreenChecker,
-};
-use rshacks::types::{Delay, Opened};
+use rshacks::types::Delay;
+use rshacks::win::proc::Process;
 use std::fmt;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-use std::path::Path;
 use std::time::{Duration, Instant};
+
+use super::pre::GameState;
+use super::{PostCondition, PostResult, PreCondition};
 
 // Avoid spamming actions by default,
 // or the server may send "too many actions" on accident.
@@ -16,44 +13,35 @@ const DEFAULT_ACTION_DELAY: Delay = Delay(Duration::from_millis(500));
 const DEFAULT_ACTION_WINDUP: Delay = Delay(Duration::ZERO);
 
 #[derive(Debug, PartialEq)]
-struct Action {
-    pre: Vec<PreCondition>,
+pub(crate) struct Action {
+    pub pre: Vec<PreCondition>,
     /// The boolean remembers which preconditions have been true at some point,
     /// and are reset once the action is triggered.
-    after_pre: Vec<(PreCondition, bool)>,
-    post: PostCondition,
-    last_trigger: Instant,
-    delay: Delay,
-    windup_start: Option<Instant>,
-    windup_time: Delay,
-    silent: bool,
+    pub after_pre: Vec<(PreCondition, bool)>,
+    pub post: PostCondition,
+    pub last_trigger: Instant,
+    pub delay: Delay,
+    pub windup_start: Option<Instant>,
+    pub windup_time: Delay,
+    pub silent: bool,
     /// `Some(toggled on)` if it can be toggled on and off, `None` otherwise (immediate one-shot).
-    toggle: Option<bool>,
+    pub toggle: Option<bool>,
     /// When toggling an action, the preconditions are being held to true.
     /// This is used to prevent it from being toggled back until the precondition
     /// has been checked to be false at least once during a check to toggle.
-    toggle_pre_held: bool,
-    _source: String,
+    pub toggle_pre_held: bool,
+    source: String,
 }
 
-pub struct ActionSet {
-    pub checker: MemoryChecker,
-    actions: Vec<Action>,
-    inhibit_key_presses: bool,
-    created: Instant,
-    mouse_hook: bool,
-    screen_checker: Option<ScreenChecker>,
-}
-
-enum TriggerResult {
-    Success(ActionResult),
+pub enum TriggerResult {
+    Success(PostResult),
     Failed { reason: &'static str },
     Queued,
     Delayed,
 }
 
 impl Action {
-    fn from_line(line: &str) -> Result<Option<Action>, String> {
+    pub fn from_line(line: &str) -> Result<Option<Action>, String> {
         if line.starts_with("//") || line.chars().all(|c| c.is_whitespace()) {
             return Ok(None);
         }
@@ -267,61 +255,42 @@ impl Action {
             silent,
             toggle,
             toggle_pre_held: false,
-            _source: line,
+            source: line,
         }))
     }
 
     /// Check preconditions.
-    fn check_pre(
-        &self,
-        stats: &PlayerStats,
-        mouse_status: MouseStatus,
-        area_status: AreaStatus,
-    ) -> bool {
+    fn check_pre(&self, state: &GameState) -> bool {
         self.after_pre
             .iter()
             .all(|(_, previously_true)| *previously_true)
-            && self
-                .pre
-                .iter()
-                .all(|p| p.is_valid(stats, mouse_status, area_status))
+            && self.pre.iter().all(|p| p.is_valid(state))
     }
 
     /// Returns `true` if `trigger` should be called.
-    fn check(
-        &self,
-        stats: &PlayerStats,
-        mouse_status: MouseStatus,
-        area_status: AreaStatus,
-    ) -> bool {
+    pub fn check(&self, state: &GameState) -> bool {
         self.windup_start.is_some()
-            || ((matches!(self.toggle, Some(true))
-                || self.check_pre(stats, mouse_status, area_status))
+            || ((matches!(self.toggle, Some(true)) || self.check_pre(state))
                 && self.last_trigger.elapsed() > self.delay.0)
     }
 
     /// Attempt to toggle the action on or off (if the action is not a one-shot).
     ///
     /// It's also used to enable the checks needed prior to running pre-conditions.
-    fn try_toggle(
-        &mut self,
-        stats: &PlayerStats,
-        mouse_status: MouseStatus,
-        area_status: AreaStatus,
-    ) {
+    pub fn try_toggle(&mut self, state: &GameState) {
         self.after_pre
             .iter_mut()
             .for_each(|(pre, previously_true)| {
                 if !*previously_true {
-                    *previously_true = pre.is_valid(stats, mouse_status, area_status);
+                    *previously_true = pre.is_valid(state);
                 }
             });
 
         if let Some(enabled) = self.toggle {
             // `toggle_pre_held` needs to be false at least once to toggle an action back.
             if self.toggle_pre_held {
-                self.toggle_pre_held = self.check_pre(stats, mouse_status, area_status);
-            } else if self.check_pre(stats, mouse_status, area_status) {
+                self.toggle_pre_held = self.check_pre(state);
+            } else if self.check_pre(state) {
                 self.toggle = Some(!enabled);
                 self.toggle_pre_held = true;
             }
@@ -329,18 +298,18 @@ impl Action {
     }
 
     /// Trigger the action.
-    fn trigger(&mut self) -> Result<ActionResult, &'static str> {
+    fn trigger(&mut self, process: &Process) -> Result<PostResult, &'static str> {
         self.after_pre
             .iter_mut()
             .for_each(|(_, previously_true)| *previously_true = false);
         self.last_trigger = Instant::now();
-        self.post.act()
+        self.post.act(process)
     }
 
     /// Try to trigger the action.
     ///
     /// If it has windup, the action will be delayed.
-    fn try_trigger(&mut self) -> TriggerResult {
+    pub fn try_trigger(&mut self, process: &Process) -> TriggerResult {
         if self.windup_time.0 > Duration::ZERO {
             let now = Instant::now();
             if let Some(start) = self.windup_start {
@@ -355,152 +324,10 @@ impl Action {
             }
         }
 
-        match self.trigger() {
+        match self.trigger(process) {
             Ok(result) => TriggerResult::Success(result),
             Err(reason) => TriggerResult::Failed { reason },
         }
-    }
-}
-
-impl ActionSet {
-    pub fn from_file<P: AsRef<Path>>(
-        path: P,
-        checker: MemoryChecker,
-    ) -> Result<Self, &'static str> {
-        let actions: Vec<Action> = match File::open(path) {
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                return Err("poe key file not found");
-            }
-            Err(_) => {
-                return Err("failed to open poe key file, lack of permissions?");
-            }
-            Ok(file) => BufReader::new(file)
-                .lines()
-                .map(|line| line.expect("failed to read file"))
-                .flat_map(|line| match Action::from_line(&line) {
-                    Ok(action) => action,
-                    Err(message) => {
-                        eprintln!("warning: skipping '{}' because {}", line, message);
-                        None
-                    }
-                })
-                .collect(),
-        };
-
-        let mouse_hook = actions.iter().any(|a| {
-            a.pre
-                .iter()
-                .chain(a.after_pre.iter().map(|(p, _)| p))
-                .any(|p| matches!(p, PreCondition::MouseWheel { .. }))
-        });
-
-        let screen_checks = actions.iter().any(|a| {
-            a.pre
-                .iter()
-                .chain(a.after_pre.iter().map(|(p, _)| p))
-                .any(|p| matches!(p, PreCondition::Chat { .. }))
-        });
-
-        let screen_checker = if screen_checks {
-            Some(ScreenChecker::install())
-        } else {
-            None
-        };
-
-        Ok(ActionSet {
-            checker,
-            actions,
-            inhibit_key_presses: false,
-            created: Instant::now(),
-            mouse_hook,
-            screen_checker,
-        })
-    }
-
-    pub fn check_all(&mut self) {
-        // won't suffer from TOCTOU (all methods rely on information cached during refresh)
-        if let Some(stats) = self.checker.player_stats() {
-            let mouse_status = if self.mouse_hook {
-                super::poll_mouse_status()
-            } else {
-                MouseStatus::default()
-            };
-            let area_status = AreaStatus {
-                in_town: self.checker.in_town(),
-                just_transitioned: self.checker.just_transitioned(),
-                chat_open: self
-                    .screen_checker
-                    .as_mut()
-                    .map(|sc| sc.chat_open())
-                    .unwrap_or(Opened::Closed),
-                in_foreground: self.checker.in_foreground(),
-            };
-
-            let actions = &mut self.actions;
-            let inhibit_key_presses = &mut self.inhibit_key_presses;
-            let skip_key_presses = *inhibit_key_presses;
-            let created = &self.created;
-            actions
-                .iter_mut()
-                .map(|a| {
-                    a.try_toggle(stats, mouse_status, area_status);
-                    a
-                })
-                .filter(|a| !(skip_key_presses && matches!(a.post, PostCondition::PressKey { .. })))
-                .filter(|a| a.check(stats, mouse_status, area_status))
-                .for_each(|a| match a.try_trigger() {
-                    TriggerResult::Success(action_result) => {
-                        if !a.silent {
-                            eprintln!(
-                                "[{:?}; {}] note: ran successfully: {}",
-                                created.elapsed(),
-                                stats,
-                                a
-                            );
-                        }
-                        match action_result {
-                            ActionResult::SetKeySuppression { suppress } => {
-                                *inhibit_key_presses = suppress;
-                            }
-                            ActionResult::None => {}
-                        }
-                    }
-                    TriggerResult::Failed { reason } => {
-                        eprintln!(
-                            "[{:?}; {}] warning: run failed: {}: {}",
-                            created.elapsed(),
-                            stats,
-                            a,
-                            reason
-                        );
-                    }
-                    TriggerResult::Queued => {
-                        if !a.silent {
-                            eprintln!(
-                                "[{:?}; {}] note: queued action: {}",
-                                created.elapsed(),
-                                stats,
-                                a
-                            );
-                        }
-                    }
-                    TriggerResult::Delayed => {}
-                });
-        }
-    }
-
-    pub fn needs_mouse_hook(&self) -> bool {
-        self.mouse_hook
-    }
-}
-
-impl fmt::Display for ActionSet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} actions for:", self.actions.len(),)?;
-        for action in self.actions.iter() {
-            write!(f, "\n- {}", action)?;
-        }
-        Ok(())
     }
 }
 

@@ -1,5 +1,5 @@
-use super::{AreaStatus, MouseStatus, PlayerStats};
 use crate::win;
+use rshacks::checker::{FocusState, LogState, MemoryState, MouseState, ScreenState};
 use rshacks::types::{Direction, Opened, Value, Vk};
 use std::fmt;
 
@@ -17,27 +17,74 @@ pub enum PreCondition {
     WindowBlur,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PreRequirement {
+    Area,
+    Focus,
+    Mouse,
+    Player,
+    Screen,
+}
+
+pub struct GameState {
+    pub area: Option<LogState>,
+    pub focus: Option<FocusState>,
+    pub mouse: Option<MouseState>,
+    pub player: Option<MemoryState>,
+    pub screen: Option<ScreenState>,
+}
+
 impl PreCondition {
-    pub fn is_valid(
-        &self,
-        checker: &PlayerStats,
-        mouse_status: MouseStatus,
-        area_status: AreaStatus,
-    ) -> bool {
-        match self {
-            Self::LifeBelow { threshold } => checker.life_below(*threshold),
-            Self::EnergyBelow { threshold } => checker.es_below(*threshold),
-            Self::ManaBelow { threshold } => checker.mana_below(*threshold),
-            Self::KeyPress { vk } => win::keyboard::is_down(vk.0),
+    pub fn is_valid(&self, state: &GameState) -> bool {
+        fn ok() {}
+        (|| match self {
+            Self::LifeBelow { threshold } => threshold
+                .above(
+                    state.player.as_ref()?.health.hp,
+                    state.player.as_ref()?.health.max_hp,
+                )
+                .then(ok),
+            Self::EnergyBelow { threshold } => threshold
+                .above(
+                    state.player.as_ref()?.health.es,
+                    state.player.as_ref()?.health.max_es,
+                )
+                .then(ok),
+            Self::ManaBelow { threshold } => threshold
+                .above(
+                    state.player.as_ref()?.mana.mana,
+                    state.player.as_ref()?.mana.max_mana,
+                )
+                .then(ok),
+            Self::KeyPress { vk } => win::keyboard::is_down(vk.0).then(ok),
             Self::MouseWheel { dir } => match dir {
-                Direction::Up => mouse_status.scrolled_up,
-                Direction::Down => mouse_status.scrolled_down,
+                Direction::Up => state.mouse.as_ref()?.scrolled_up.then(ok),
+                Direction::Down => state.mouse.as_ref()?.scrolled_down.then(ok),
             },
-            Self::InArea { town } => area_status.in_town.map_or(false, |x| *town == x),
-            Self::JustTransitioned => area_status.just_transitioned,
-            Self::Chat { open } => *open == area_status.chat_open,
-            Self::WindowFocus => area_status.in_foreground,
-            Self::WindowBlur => !area_status.in_foreground,
+            Self::InArea { town } => state
+                .area
+                .as_ref()?
+                .in_town
+                .map_or(false, |x| *town == x)
+                .then(ok),
+            Self::JustTransitioned => state.area.as_ref()?.just_transitioned.then(ok),
+            Self::Chat { open } => (*open == state.screen.as_ref()?.chat_open).then(ok),
+            Self::WindowFocus => state.focus.as_ref()?.in_foreground.then(ok),
+            Self::WindowBlur => (!state.focus.as_ref()?.in_foreground).then(ok),
+        })()
+        .is_some()
+    }
+
+    pub fn requires(&self, requirement: PreRequirement) -> bool {
+        match self {
+            Self::LifeBelow { .. } | Self::EnergyBelow { .. } | Self::ManaBelow { .. } => {
+                requirement == PreRequirement::Player
+            }
+            Self::KeyPress { .. } => false,
+            Self::MouseWheel { .. } => requirement == PreRequirement::Mouse,
+            Self::InArea { .. } | Self::JustTransitioned => requirement == PreRequirement::Area,
+            Self::Chat { .. } => requirement == PreRequirement::Screen,
+            Self::WindowFocus | Self::WindowBlur => requirement == PreRequirement::Focus,
         }
     }
 }

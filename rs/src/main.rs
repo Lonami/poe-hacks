@@ -1,10 +1,13 @@
 mod action;
-mod utils;
 
-use crate::action::{ActionSet, Health, Mana, MemoryChecker};
+use crate::action::{ActionSet, GameState, PreRequirement};
+use rshacks::checker::{
+    FocusChecker, LogChecker, MemoryChecker, MemoryState, MouseChecker, ScreenChecker,
+};
 use rshacks::win;
 use std::fs;
 use std::io::{self, Write as _};
+use std::rc::Rc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -26,7 +29,7 @@ const REPORT_PROGRESS_EVERY: isize = 256;
 
 /// Return true if the health, energy shield or mana values seem abnormal
 /// (such as the life being negative or too much mana reservation).
-fn suspicious_hp_or_mana(health: &Health, mana: &Mana) -> bool {
+fn suspicious_hp_or_mana(MemoryState { health, mana }: &MemoryState) -> bool {
     health.hp < 1
         || health.max_hp > SUSPICIOUS_MAX_HEALTH
         || health.hp > health.max_hp
@@ -46,20 +49,19 @@ fn suspicious_hp_or_mana(health: &Health, mana: &Mana) -> bool {
 /// If possible and the values are not suspicious, ask the user if they match.
 /// Return true if and only if the user interactively confirms these values.
 fn try_confirm_valid_hp_or_mana(checker: &MemoryChecker) -> bool {
-    if let Some(health) = checker.health() {
-        if let Some(mana) = checker.mana() {
-            if !suspicious_hp_or_mana(&health, &mana) {
-                if win::prompt::ask(
-                    "possible values found",
-                    &format!("is this ok?: {:#?}, {:#?}", health, mana),
-                )
-                .expect("search for new working ptr.map cancelled")
-                {
-                    return true;
-                }
-            }
-        }
+    let state = match checker.check() {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    if !suspicious_hp_or_mana(&state) {
+        return win::prompt::ask(
+            "possible values found",
+            &format!("is this ok?: {:#?}", state),
+        )
+        .expect("search for new working ptr.map cancelled");
     }
+
     false
 }
 
@@ -83,20 +85,17 @@ fn main() {
     }
 }
 
-fn run() {
-    win::screen::register_window_class().expect("failed to register window class for tooltips");
+const POE_EXE: &'static str = "PathOfExile";
 
-    let mut ptr_map = std::env::current_exe().expect("could not locate self file location");
-    ptr_map.set_file_name(PTR_MAP_FILE);
-    let mut checker = match MemoryChecker::load_ptr_map(&ptr_map) {
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            panic!("pointer .map file not found at: {}\n\nthe file must exist for the program to read the in-game ehp value", ptr_map.to_string_lossy());
-        }
-        Err(err) => {
-            panic!("failed to initialize memory checker: {}", err);
-        }
-        Ok(checker) => checker,
-    };
+fn run() {
+    let mut args = std::env::args();
+    let _program = args.next();
+    let file = args.next().unwrap_or_else(|| "poe.key".into());
+
+    let mut actions =
+        ActionSet::from_file(&file).expect(&format!("failed to load action set from '{}'", file));
+    eprintln!("loaded action set from '{}'", file);
+    eprintln!("loaded {}", actions);
 
     eprintln!("waiting for right click...");
     while !win::keyboard::is_down(0x02) {
@@ -106,80 +105,106 @@ fn run() {
         sleep(DELAY);
     }
 
-    match checker.refresh() {
-        Ok(_) => {}
-        Err(err) => panic!("failed to refresh player stats: {}", err),
-    }
+    let process =
+        Rc::new(win::proc::Process::open_by_name(POE_EXE).expect("could not find poe running"));
 
-    match checker.player_stats() {
-        Some(stats) => {
-            // pointer-map seems to work but may have been chance (unlikely) so check for abnormal values.
-            // if abnormal values are found, crash (manually finding the new addresses is required).
-            if suspicious_hp_or_mana(&stats.health, &stats.mana) {
-                panic!("current ptr.map did not fail but the values look wrong, manual fix required: {:#?}, {:#?}", stats.health, stats.mana);
+    let mut area_checker = if actions.requires(PreRequirement::Area) {
+        eprintln!("initializing log checker");
+        Some(LogChecker::new(Rc::clone(&process)))
+    } else {
+        None
+    };
+    let mut focus_checker = if actions.requires(PreRequirement::Focus) {
+        eprintln!("initializing focus checker");
+        Some(FocusChecker::new(Rc::clone(&process)))
+    } else {
+        None
+    };
+    let mut mouse_checker = if actions.requires(PreRequirement::Mouse) {
+        eprintln!("initializing mouse checker");
+        Some(MouseChecker::new())
+    } else {
+        None
+    };
+    let mut player_checker = if actions.requires(PreRequirement::Player) {
+        eprintln!("initializing memory checker");
+
+        let mut ptr_map = std::env::current_exe().expect("could not locate self file location");
+        ptr_map.set_file_name(PTR_MAP_FILE);
+        let mut checker = match MemoryChecker::load_ptr_map(&ptr_map, process.clone()) {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                panic!("pointer .map file not found at: {}\n\nthe file must exist for the program to read the in-game ehp value", ptr_map.to_string_lossy());
+            }
+            Err(err) => {
+                panic!("failed to initialize memory checker: {}", err);
+            }
+            Ok(checker) => checker,
+        };
+
+        match checker.check() {
+            Ok(state) => {
+                // pointer-map seems to work but may have been chance (unlikely) so check for abnormal values.
+                // if abnormal values are found, crash (manually finding the new addresses is required).
+                if suspicious_hp_or_mana(&state) {
+                    panic!("current ptr.map did not fail but the values look wrong, manual fix required: {:#?}", state);
+                }
+            }
+            Err(e) => {
+                // pointer-map no longer works, try to fix the base address
+                win::prompt::warn("current ptr.map is invalid", &format!("the current ptr.map does not work, so poe-hacks will try to fix it:\n{e}\n\nDO NOT CHANGE AREA WHILE THIS PROCESS RUNS!\n\nanother alert will show once the process completes (this can take a few minutes)"));
+                write!(io::stderr(), "scanning for new base address...        \r").unwrap();
+
+                let mut nudge_amount = 0;
+                while nudge_amount < MAX_BASE_ADDR_NUDGE {
+                    if nudge_amount % (REPORT_PROGRESS_EVERY * BASE_ADDR_NUDGE_STEP) == 0 {
+                        write!(
+                            io::stderr(),
+                            "scaning for new base address... {:.2}% \r",
+                            100.0 * (nudge_amount as f32 / MAX_BASE_ADDR_NUDGE as f32)
+                        )
+                        .unwrap();
+                    }
+                    // nudge the address in a "zig-zag" kind of way until we manage to read all the way through
+                    nudge_amount += BASE_ADDR_NUDGE_STEP;
+                    checker.nudge_map_base_addr(nudge_amount);
+                    if try_confirm_valid_hp_or_mana(&checker) {
+                        break;
+                    }
+                    checker.nudge_map_base_addr(nudge_amount * -2);
+                    if try_confirm_valid_hp_or_mana(&checker) {
+                        break;
+                    }
+
+                    // reset the base address to its original value after every iteration
+                    // so it's left unmodified if things don't work out
+                    checker.nudge_map_base_addr(nudge_amount);
+                }
+                write!(io::stderr(), "scanning for new base address... complete\n").unwrap();
+
+                if nudge_amount < MAX_BASE_ADDR_NUDGE {
+                    let timestamp = chrono::Local::now().format("%Y%m%d.%H%M%S.map").to_string();
+                    win::prompt::info("new base address found", &format!("a new working base address was found at an offset of {:08X}\n\na copy of the ptr.map will be saved to ptr.{}, and the current one will be updated", nudge_amount, timestamp));
+                    fs::rename(&ptr_map, ptr_map.with_extension(timestamp))
+                        .expect("failed to backup existing ptr.map");
+                    checker
+                        .save_ptr_map(ptr_map)
+                        .expect("failed to save updated ptr.map");
+                } else {
+                    panic!("ptr.map could not be updated, manual fix required");
+                }
             }
         }
-        None => {
-            // pointer-map no longer works, try to fix the base address
-            win::prompt::warn("current ptr.map is invalid", "the current ptr.map does not work, so poe-hacks will try to fix it.\n\nDO NOT CHANGE AREA WHILE THIS PROCESS RUNS!\n\nanother alert will show once the process completes (this can take a few minutes)");
-            write!(io::stderr(), "scanning for new base address...        \r").unwrap();
 
-            let mut nudge_amount = 0;
-            while nudge_amount < MAX_BASE_ADDR_NUDGE {
-                if nudge_amount % (REPORT_PROGRESS_EVERY * BASE_ADDR_NUDGE_STEP) == 0 {
-                    write!(
-                        io::stderr(),
-                        "scaning for new base address... {:.2}% \r",
-                        100.0 * (nudge_amount as f32 / MAX_BASE_ADDR_NUDGE as f32)
-                    )
-                    .unwrap();
-                }
-                // nudge the address in a "zig-zag" kind of way until we manage to read all the way through
-                nudge_amount += BASE_ADDR_NUDGE_STEP;
-                checker.nudge_map_base_addr(nudge_amount);
-                if try_confirm_valid_hp_or_mana(&checker) {
-                    break;
-                }
-                checker.nudge_map_base_addr(nudge_amount * -2);
-                if try_confirm_valid_hp_or_mana(&checker) {
-                    break;
-                }
-
-                // reset the base address to its original value after every iteration
-                // so it's left unmodified if things don't work out
-                checker.nudge_map_base_addr(nudge_amount);
-            }
-            write!(io::stderr(), "scanning for new base address... complete\n").unwrap();
-
-            if nudge_amount < MAX_BASE_ADDR_NUDGE {
-                let timestamp = chrono::Local::now().format("%Y%m%d.%H%M%S.map").to_string();
-                win::prompt::info("new base address found", &format!("a new working base address was found at an offset of {:08X}\n\na copy of the ptr.map will be saved to ptr.{}, and the current one will be updated", nudge_amount, timestamp));
-                fs::rename(&ptr_map, ptr_map.with_extension(timestamp))
-                    .expect("failed to backup existing ptr.map");
-                checker
-                    .save_ptr_map(ptr_map)
-                    .expect("failed to save updated ptr.map");
-            } else {
-                panic!("ptr.map could not be updated, manual fix required");
-            }
-        }
-    }
-
-    let mut args = std::env::args();
-    let _program = args.next();
-    let file = args.next().unwrap_or_else(|| "poe.key".into());
-
-    // TODO make an audible noise or show a window if this fails to let the user know that poehacks is NOT running
-    let mut actions = ActionSet::from_file(&file, checker)
-        .expect(&format!("failed to load action set from '{}'", file));
-    eprintln!("loaded action set from '{}'", file);
-
-    if actions.needs_mouse_hook() {
-        eprintln!("actions need mouse hook, installing");
-        win::hook::install_mouse_hook();
-    }
-
-    eprintln!("loaded {}", actions);
+        Some(checker)
+    } else {
+        None
+    };
+    let mut screen_checker = if actions.requires(PreRequirement::Screen) {
+        eprintln!("initializing checker checker");
+        Some(ScreenChecker::new())
+    } else {
+        None
+    };
 
     println!("poe-hacks is now running");
     let mut last = Instant::now();
@@ -190,11 +215,31 @@ fn run() {
         }
         last = now;
         sleep(DELAY);
-        // TODO maybe both checkers could be async tbh
-        // as long as oneshot events aren't missed
-        match actions.checker.refresh() {
-            Ok(_) => actions.check_all(),
-            Err(e) => eprintln!("warning: failed to refresh checker: {}", e),
-        }
+
+        // TODO could skip checkers that are disabled (say, chat screen only needed sometimes)
+        let state = GameState {
+            area: area_checker.as_mut().and_then(|checker| {
+                checker
+                    .check()
+                    .inspect_err(|e| eprintln!("warning: failed to refresh area checker: {e}"))
+                    .ok()
+            }),
+            focus: focus_checker.as_mut().and_then(|checker| {
+                checker
+                    .check()
+                    .inspect_err(|e| eprintln!("warning: failed to refresh focus checker: {e}"))
+                    .ok()
+            }),
+            mouse: mouse_checker.as_mut().map(|checker| checker.check()),
+            player: player_checker.as_mut().and_then(|checker| {
+                checker
+                    .check()
+                    .inspect_err(|e| eprintln!("warning: failed to refresh player checker: {e}"))
+                    .ok()
+            }),
+            screen: screen_checker.as_mut().map(|checker| checker.check()),
+        };
+
+        actions.check_all(&state, process.as_ref());
     }
 }
