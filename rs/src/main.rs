@@ -240,6 +240,13 @@ fn run() {
             screen: screen_checker.as_mut().map(|checker| checker.check()),
         };
 
+        if let Some(player) = state.player.as_ref() {
+            if player.health.hp == 0 {
+                // Don't bother running checks if the player is dead.
+                continue;
+            }
+        }
+
         actions.check_all(&state, process.as_ref());
     }
 }
