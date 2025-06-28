@@ -3,7 +3,6 @@
     import Block from "./Block.svelte";
     import type { DragEventHandler } from "svelte/elements";
     import { deserializeBlockDefinition } from "$lib/serde";
-    import { squeeze } from "$lib/transition";
     import { mkGetObjectKey } from "$lib/keys";
     import { slide } from "svelte/transition";
 
