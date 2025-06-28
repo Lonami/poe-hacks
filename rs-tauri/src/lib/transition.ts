@@ -1,15 +1,5 @@
 import { fly, slide } from "svelte/transition";
 
-export const squeeze: typeof slide = (node, props) => {
-    const defaultScale = slide(node, props);
-    const height = node.getBoundingClientRect().height;
-    return {
-        ...defaultScale,
-        css: (t: number, u: number) =>
-            `transform:scaleY(${t});margin-bottom:-${height * u}px`,
-    };
-};
-
 export const flyIn: typeof fly = (node, props) => {
     const defaultFlight = fly(node);
     const duration = props?.duration ?? defaultFlight.duration ?? 1;

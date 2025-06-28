@@ -4,6 +4,8 @@
     import type { DragEventHandler } from "svelte/elements";
     import { deserializeBlockDefinition } from "$lib/serde";
     import { squeeze } from "$lib/transition";
+    import { mkGetObjectKey } from "$lib/keys";
+    import { slide } from "svelte/transition";
 
     type Props = {
         rule: RuleDefinition;
@@ -12,19 +14,7 @@
 
     const { rule = $bindable(), onDeleteRule }: Props = $props();
 
-    let curId = 0;
-    const ids = new WeakMap();
-
-    const blockId = (block: BlockDefinition) => {
-        const id = ids.get(block);
-        if (id) {
-            return id;
-        }
-        curId += 1;
-        const newId = curId;
-        ids.set(block, newId);
-        return newId;
-    };
+    const blockId = mkGetObjectKey<BlockDefinition>();
 
     let dropZone: HTMLDivElement;
     let dragInfo = $state<{
@@ -95,7 +85,11 @@
     };
 </script>
 
-<div class="rule">
+<div
+    class="rule"
+    in:slide={{ duration: 200, axis: "x" }}
+    out:slide={{ duration: 200, axis: "x" }}
+>
     <header>
         Rule
         <input
@@ -119,7 +113,8 @@
         {#each rule.blocks as block, i (blockId(block))}
             <div
                 class:gapTop={i === dragInfo?.dropIndex}
-                out:squeeze={{ duration: 200 }}
+                in:slide={{ duration: 200 }}
+                out:slide={{ duration: 200 }}
             >
                 <Block
                     bind:block={rule.blocks[i]}
@@ -137,6 +132,7 @@
     .rule {
         padding: 0.5em;
         box-shadow: 4px 4px 8px color-mix(in hsl, var(--accent-rule), #000 50%);
+        transition: width 200ms;
     }
 
     .rule,

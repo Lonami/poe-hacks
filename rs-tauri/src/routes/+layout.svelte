@@ -4,19 +4,20 @@
     import { fly } from "svelte/transition";
     import Header from "./Header.svelte";
     import { flyIn } from "$lib/transition";
+    import { page } from "$app/state";
 
     type Props = {
         children: Snippet;
-        data: { pathname: string };
     };
 
-    const { children, data }: Props = $props();
+    const { children }: Props = $props();
 
     let prev = $state(location.href);
 
     const routes = Object.keys(ROUTES);
     const x = $derived(
-        50 * Math.sign(routes.indexOf(data.pathname) - routes.indexOf(prev)),
+        50 *
+            Math.sign(routes.indexOf(page.url.pathname) - routes.indexOf(prev)),
     );
 
     const carousselOut: typeof fly = (node, props) =>
@@ -26,14 +27,14 @@
         flyIn(node, { ...props, x });
 </script>
 
-<Header pathname={data.pathname} />
+<Header pathname={page.url.pathname} />
 
-{#key data.pathname}
+{#key page.url.pathname}
     <main
         out:carousselOut={{ duration: 100 }}
         in:carousselIn={{ duration: 100, delay: 100 }}
         onintroend={() => {
-            prev = data.pathname;
+            prev = page.url.pathname;
         }}
     >
         {@render children?.()}

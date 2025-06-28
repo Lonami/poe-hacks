@@ -51,7 +51,7 @@
         text-decoration: none;
         color: #000;
         box-shadow: inset -1px -1px 2px #000;
-        transition: box-shadow 200ms;
+        transition: box-shadow 200ms cubic-bezier(0, 1, 0.5, 2);
     }
     .active {
         border: none;

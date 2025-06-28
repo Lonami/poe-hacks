@@ -2,8 +2,11 @@
     import Rule from "./Rule.svelte";
     import BlockPalette from "./BlockPalette.svelte";
     import type { RuleDefinition } from "$lib/types";
+    import { mkGetObjectKey } from "$lib/keys";
 
     let ruleDefinitions = $state<RuleDefinition[]>([]);
+
+    const ruleId = mkGetObjectKey<RuleDefinition>();
 </script>
 
 <div class="editor">
@@ -19,7 +22,7 @@
     </div>
 
     <div role="grid">
-        {#each ruleDefinitions as _, i}
+        {#each ruleDefinitions as rule, i (ruleId(rule))}
             <Rule
                 bind:rule={ruleDefinitions[i]}
                 onDeleteRule={() => {
