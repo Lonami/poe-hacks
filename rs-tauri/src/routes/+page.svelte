@@ -1,41 +1,34 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import LifeDisplay from "./LifeDisplay.svelte";
+  import ManaDisplay from "./ManaDisplay.svelte";
 
   let name = $state("");
-  let greetMsg = $state("");
+  let health = $state({ hp: 1, max_hp: 1, unreserved_hp: 1, es: 1, max_es: 1 });
+  let mana = $state({ mana: 1, max_mana: 1, unreserved_mana: 1 });
 
   async function greet(event: Event) {
     event.preventDefault();
-    greetMsg = await invoke("greet", { name });
+    health = await invoke("greet", { name });
   }
 </script>
 
-<main class="container">
+<div class="container">
   <h1>poe-hacks</h1>
   <form class="row" onsubmit={greet}>
     <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
     <button type="submit">Greet</button>
   </form>
-  <p>{greetMsg}</p>
-</main>
+  <p>{JSON.stringify(health)}</p>
+  <p>{(health.max_hp - health.hp) / health.max_hp}</p>
+
+  <div class="resource-displays">
+    <LifeDisplay {health} />
+    <ManaDisplay {mana} />
+  </div>
+</div>
 
 <style>
-  :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 400;
-
-    color: #0f0f0f;
-    background-color: #f6f6f6;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
-  }
-
   .container {
     margin: 0;
     padding-top: 10vh;
@@ -89,19 +82,9 @@
     margin-right: 5px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color: #f6f6f6;
-      background-color: #2f2f2f;
-    }
-
-    input,
-    button {
-      color: #ffffff;
-      background-color: #0f0f0f98;
-    }
-    button:active {
-      background-color: #0f0f0f69;
-    }
+  .resource-displays {
+    display: flex;
+    justify-content: space-between;
+    height: 10em;
   }
 </style>

@@ -1,6 +1,30 @@
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
+pub struct Health {
+    pub hp: i32,
+    pub max_hp: i32,
+    pub unreserved_hp: i32,
+    pub es: i32,
+    pub max_es: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Mana {
+    pub mana: i32,
+    pub max_mana: i32,
+    pub unreserved_mana: i32,
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn greet(name: &str) -> Health {
+    Health {
+        hp: name.parse().unwrap_or(50),
+        max_hp: 100,
+        unreserved_hp: 100,
+        es: 100,
+        max_es: name.parse().unwrap_or(50),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -1,0 +1,21 @@
+:root {
+    --accent-rule: #f67;
+    --accent-rule-text: #fff;
+
+    --accent-condition: #fc0;
+    --accent-condition-text: #000;
+
+    --accent-action: #59f;
+    --accent-action-text: #fff;
+
+    --accent-timing: #c6c;
+    --accent-timing-text: #fff;
+
+    --accent-life-bar: #800;
+    --accent-energy-bar: #0ef;
+    --accent-mana-bar: #03a;
+
+    --accent-grip-area: #555;
+
+    --danger: #f88;
+}
