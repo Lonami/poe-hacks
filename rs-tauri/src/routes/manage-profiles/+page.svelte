@@ -14,9 +14,6 @@
 </ul>
 
 <style>
-    .danger {
-        background-color: #f88;
-    }
     ul {
         list-style-type: none;
         margin: 1em;

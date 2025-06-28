@@ -7,10 +7,10 @@
 
     type Props = {
         rule: RuleDefinition;
-        onRuleChanged: (rule: RuleDefinition) => void;
+        onDeleteRule: () => void;
     };
 
-    const { rule, onRuleChanged }: Props = $props();
+    const { rule = $bindable(), onDeleteRule }: Props = $props();
 
     let curId = 0;
     const ids = new WeakMap();
@@ -38,10 +38,7 @@
         if (indexToRemove !== undefined) {
             // Destroying event ondragstart would kill both the element and event.
             // But this always fires right after due to starting the drag on itself.
-            onRuleChanged({
-                ...rule,
-                blocks: rule.blocks.toSpliced(indexToRemove, 1),
-            });
+            rule.blocks.splice(indexToRemove, 1);
             indexToRemove = undefined;
         }
 
@@ -79,10 +76,7 @@
         if (data && dragInfo) {
             event.preventDefault();
             const block = deserializeBlockDefinition(data);
-            onRuleChanged({
-                ...rule,
-                blocks: rule.blocks.toSpliced(dragInfo.dropIndex, 0, block),
-            });
+            rule.blocks.splice(dragInfo.dropIndex, 0, block);
             dragInfo = undefined;
         }
     };
@@ -103,14 +97,15 @@
 
 <div class="rule">
     <header>
-        Rule&nbsp;
+        Rule
         <input
             type="text"
             value={rule.name}
-            onkeyup={(e) =>
-                onRuleChanged({ ...rule, name: e.currentTarget.value })}
-            disabled={!rule.id}
-        /><span>#{rule.id}</span>
+            onkeyup={(e) => {
+                rule.name = e.currentTarget.value;
+            }}
+        />
+        <button aria-label="Delete rule" onclick={onDeleteRule}>✕</button>
     </header>
     <div
         bind:this={dropZone}
@@ -127,16 +122,9 @@
                 out:squeeze={{ duration: 200 }}
             >
                 <Block
-                    {block}
+                    bind:block={rule.blocks[i]}
                     onBlockMoved={() => {
                         indexToRemove = rule.blocks.indexOf(block);
-                    }}
-                    onBlockChanged={(newBlock) => {
-                        ids.set(newBlock, blockId(block));
-                        onRuleChanged({
-                            ...rule,
-                            blocks: rule.blocks.toSpliced(i, 1, newBlock),
-                        });
                     }}
                 />
             </div>
@@ -162,29 +150,20 @@
         margin: 0.5em 0.5em;
         border: 0.1em dashed
             color-mix(in hsl, var(--accent-rule), var(--accent-rule-text) 50%);
-        min-height: 4em;
+        min-height: 2.5em;
         padding: 0.25em;
     }
 
     header {
         display: flex;
+        gap: 0.5em;
         align-items: center;
     }
 
-    input,
-    span {
+    input {
         font-family: "Courier New", Courier, monospace;
-    }
-
-    span {
-        border-width: 2px 2px 2px 0;
-        border-color: #000;
-        border-style: ridge;
-        background-color: color-mix(
-            in hsl,
-            var(--accent-rule),
-            var(--accent-rule-text) 25%
-        );
+        flex-grow: 1;
+        width: 12ch;
     }
 
     div[role="rowgroup"] > div {

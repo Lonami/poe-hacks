@@ -9,6 +9,13 @@
 
     import Block from "./Block.svelte";
 
+    type Props = {
+        onAddNewRule: () => void;
+        onResetAllRules: () => void;
+    };
+
+    const { onAddNewRule, onResetAllRules }: Props = $props();
+
     const BLOCKS_CONDITION = {
         when: {
             kind: "when",
@@ -56,6 +63,18 @@
 
 <div class="rtl">
     <div class="ltr">
+        <h1>Rules</h1>
+        <div>
+            <button onclick={onAddNewRule}>Add new rule</button>
+            <button
+                class="danger"
+                onclick={() => {
+                    if (confirm("Reset all rules? This cannot be undone.")) {
+                        onResetAllRules();
+                    }
+                }}>Reset</button
+            >
+        </div>
         <h1>Events</h1>
         {#each Object.entries(BLOCKS_CONDITION) as [kind, block] (kind)}
             <Block {block} isReadonly />

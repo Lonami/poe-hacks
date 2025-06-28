@@ -10,3 +10,7 @@ body {
     display: flex;
     flex-direction: column;
 }
+
+button.danger {
+    background-color: #f88;
+}

@@ -19,20 +19,17 @@
     } & (
         | {
               onBlockMoved: () => void;
-              onBlockChanged: (block: BlockDefinition) => void;
               isReadonly?: undefined;
           }
         | {
               onBlockMoved?: undefined;
-              onBlockChanged?: undefined;
               isReadonly: true;
           }
     );
 
     const {
-        block,
+        block = $bindable(),
         onBlockMoved,
-        onBlockChanged,
         isReadonly: disabled,
     }: Props = $props();
 
@@ -61,7 +58,7 @@
     });
 
     const onkeyup: KeyboardEventHandler<HTMLInputElement> = (event) => {
-        onBlockChanged?.({ ...block, value: event.currentTarget.value });
+        block.value = event.currentTarget.value;
     };
 </script>
 
@@ -73,7 +70,7 @@
     style="--accent: var(--accent-{accent}); --text: var(--accent-{accent}-text); --length: {block
         .value.length + 2}ch;"
 >
-    <GripAreaDisplay height={"24"} />
+    <GripAreaDisplay height={"20"} />
     {#if block.kind === "when"}
         <strong>when</strong>
         <select value={block.variable} {disabled}>
@@ -108,7 +105,7 @@
                 if (e.key.length === 1) {
                     value += e.key === " " ? "Spc" : e.key.toUpperCase();
                 }
-                onBlockChanged?.({ ...block, value });
+                block.value = value;
             }}
             {disabled}
         />
@@ -162,7 +159,7 @@
     div {
         border: 0.2em solid color-mix(in hsl, var(--accent), #000 25%);
         display: flex;
-        gap: 0.5em;
+        gap: 1ch;
         cursor: grab;
         padding: 0.3em;
         background-color: var(--accent);

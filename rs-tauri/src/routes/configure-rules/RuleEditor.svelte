@@ -3,42 +3,27 @@
     import BlockPalette from "./BlockPalette.svelte";
     import type { RuleDefinition } from "$lib/types";
 
-    let ruleDefinitions = $state<RuleDefinition[]>([
-        {
-            id: 0,
-            name: "Create new rule…",
-            blocks: [],
-        },
-    ]);
+    let ruleDefinitions = $state<RuleDefinition[]>([]);
 </script>
 
 <div class="editor">
     <div class="palette">
-        <BlockPalette></BlockPalette>
+        <BlockPalette
+            onAddNewRule={() => {
+                ruleDefinitions.push({ name: "", blocks: [] });
+            }}
+            onResetAllRules={() => {
+                ruleDefinitions.length = 0;
+            }}
+        ></BlockPalette>
     </div>
 
     <div role="grid">
-        {#each ruleDefinitions as rule, i (rule.id)}
+        {#each ruleDefinitions as _, i}
             <Rule
-                {rule}
-                onRuleChanged={(rule) => {
-                    if (rule.id) {
-                        ruleDefinitions[i] = rule;
-                    } else {
-                        ruleDefinitions.splice(ruleDefinitions.length - 1, 0, {
-                            id:
-                                Math.max(...ruleDefinitions.map((r) => r.id)) +
-                                1,
-                            name: "",
-                            blocks: rule.blocks,
-                        });
-                    }
-                    const emptyIndex = ruleDefinitions.findIndex(
-                        (r, j) => j !== i && r.id && !r.blocks.length,
-                    );
-                    if (emptyIndex !== -1) {
-                        ruleDefinitions.splice(emptyIndex, 1);
-                    }
+                bind:rule={ruleDefinitions[i]}
+                onDeleteRule={() => {
+                    ruleDefinitions.splice(i, 1);
                 }}
             />
         {/each}
@@ -61,7 +46,8 @@
         padding: 2em;
         display: flex;
         gap: 1em;
-        overflow-x: visible;
+        overflow-x: auto;
         flex-grow: 1;
+        align-items: start;
     }
 </style>

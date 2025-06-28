@@ -39,7 +39,6 @@ export type BlockDefinition = { value: string } & (
 )
 
 export type RuleDefinition = {
-    id: number
     name: string
     blocks: BlockDefinition[]
 }
