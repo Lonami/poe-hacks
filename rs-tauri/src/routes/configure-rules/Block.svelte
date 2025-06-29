@@ -6,7 +6,6 @@
         BLOCK_STAT_CONDITIONS,
         BLOCK_STAT_VARIABLES,
     } from "$lib/constants";
-    import { serializeBlockDefinition } from "$lib/serde";
 
     import type {
         DragEventHandler,
@@ -42,7 +41,7 @@
 
     const ondragstart: DragEventHandler<HTMLDivElement> = (event) => {
         const dt = event.dataTransfer!;
-        dt.setData("text/x-poehacks-block", serializeBlockDefinition(block));
+        dt.setData("text/x-poehacks-block", JSON.stringify(block));
         dt.effectAllowed = disabled ? "copy" : "copyMove";
         onBlockMoved?.();
     };

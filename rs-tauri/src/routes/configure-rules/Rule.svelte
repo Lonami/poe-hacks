@@ -2,7 +2,6 @@
     import type { BlockDefinition, RuleDefinition } from "$lib/types";
     import Block from "./Block.svelte";
     import type { DragEventHandler } from "svelte/elements";
-    import { deserializeBlockDefinition } from "$lib/serde";
     import { mkGetObjectKey } from "$lib/keys";
     import { slide } from "svelte/transition";
 
@@ -60,7 +59,7 @@
         const data = dt.getData("text/x-poehacks-block");
         if (data && dragInfo) {
             event.preventDefault();
-            const block = deserializeBlockDefinition(data);
+            const block = JSON.parse(data);
 
             rule.blocks.splice(dragInfo.dropIndex, 0, block);
 
