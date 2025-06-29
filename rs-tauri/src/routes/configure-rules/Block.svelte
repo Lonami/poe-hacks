@@ -11,18 +11,22 @@
     import type {
         DragEventHandler,
         KeyboardEventHandler,
+        MouseEventHandler,
     } from "svelte/elements";
     import GripAreaDisplay from "./GripAreaDisplay.svelte";
+    import ContextMenu from "./ContextMenu.svelte";
 
     type Props = {
         block: BlockDefinition;
     } & (
         | {
               onBlockMoved: () => void;
+              onBlockDeleted: () => void;
               isReadonly?: undefined;
           }
         | {
               onBlockMoved?: undefined;
+              onBlockDeleted?: undefined;
               isReadonly: true;
           }
     );
@@ -30,14 +34,22 @@
     const {
         block = $bindable(),
         onBlockMoved,
+        onBlockDeleted,
         isReadonly: disabled,
     }: Props = $props();
+
+    let contextMenu: ContextMenu;
 
     const ondragstart: DragEventHandler<HTMLDivElement> = (event) => {
         const dt = event.dataTransfer!;
         dt.setData("text/x-poehacks-block", serializeBlockDefinition(block));
         dt.effectAllowed = disabled ? "copy" : "copyMove";
         onBlockMoved?.();
+    };
+
+    const oncontextmenu: MouseEventHandler<HTMLDivElement> = (event) => {
+        event.preventDefault();
+        contextMenu.openAt(event.x, event.y);
     };
 
     let accent = $derived.by(() => {
@@ -88,6 +100,7 @@
 <div
     draggable="true"
     {ondragstart}
+    oncontextmenu={disabled ? undefined : oncontextmenu}
     role="row"
     tabindex="-1"
     style="--accent: var(--accent-{accent}); --text: var(--accent-{accent}-text); --length: {'value' in
@@ -174,6 +187,17 @@
         })()}
     {/if}
 </div>
+<ContextMenu bind:this={contextMenu}>
+    <button
+        onclick={(e) => {
+            e.preventDefault();
+            contextMenu.close();
+            onBlockDeleted?.();
+        }}
+    >
+        Delete
+    </button>
+</ContextMenu>
 
 <style>
     div {

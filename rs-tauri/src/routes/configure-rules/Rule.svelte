@@ -24,13 +24,6 @@
     let indexToRemove = $state<number>();
 
     const ondragenter: DragEventHandler<HTMLDivElement> = (event) => {
-        if (indexToRemove !== undefined) {
-            // Destroying event ondragstart would kill both the element and event.
-            // But this always fires right after due to starting the drag on itself.
-            rule.blocks.splice(indexToRemove, 1);
-            indexToRemove = undefined;
-        }
-
         const dt = event.dataTransfer!;
         if (dt.types.includes("text/x-poehacks-block")) {
             event.preventDefault();
@@ -52,6 +45,9 @@
         const dt = event.dataTransfer!;
         if (dt.types.includes("text/x-poehacks-block") && dragInfo) {
             event.preventDefault();
+            if (dt.effectAllowed === "copyMove") {
+                dt.dropEffect = event.ctrlKey ? "copy" : "move";
+            }
             dragInfo.dropIndex =
                 dragInfo.positions.findLastIndex(
                     (pos) => pos < event.clientY,
@@ -65,7 +61,19 @@
         if (data && dragInfo) {
             event.preventDefault();
             const block = deserializeBlockDefinition(data);
+
             rule.blocks.splice(dragInfo.dropIndex, 0, block);
+
+            if (!event.ctrlKey && indexToRemove !== undefined) {
+                rule.blocks.splice(
+                    indexToRemove >= dragInfo.dropIndex
+                        ? indexToRemove + 1
+                        : indexToRemove,
+                    1,
+                );
+                indexToRemove = undefined;
+            }
+
             dragInfo = undefined;
         }
     };
@@ -118,7 +126,10 @@
                 <Block
                     bind:block={rule.blocks[i]}
                     onBlockMoved={() => {
-                        indexToRemove = rule.blocks.indexOf(block);
+                        indexToRemove = i;
+                    }}
+                    onBlockDeleted={() => {
+                        rule.blocks.splice(i, 1);
                     }}
                 />
             </div>

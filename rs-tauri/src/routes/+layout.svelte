@@ -37,7 +37,7 @@
             prev = page.url.pathname;
         }}
     >
-        {@render children?.()}
+        {@render children()}
     </main>
 {/key}
 
