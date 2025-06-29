@@ -18,17 +18,17 @@
         <clipPath id="cut-off-hp">
             <rect
                 x="0"
-                y={(health.max_hp - health.hp) / health.max_hp}
+                y={(health.maxHp - health.hp) / health.maxHp}
                 width="1"
-                height={1 - (health.max_hp - health.hp) / health.max_hp}
+                height={1 - (health.maxHp - health.hp) / health.maxHp}
             />
         </clipPath>
         <clipPath id="cut-off-es">
             <rect
                 x=".5"
-                y={(health.max_hp - health.hp) / health.max_hp}
+                y={(health.maxHp - health.hp) / health.maxHp}
                 width=".5"
-                height={1 - (health.max_hp - health.hp) / health.max_hp}
+                height={1 - (health.maxHp - health.hp) / health.maxHp}
             />
         </clipPath>
     </defs>

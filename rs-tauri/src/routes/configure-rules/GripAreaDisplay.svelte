@@ -1,9 +1,9 @@
 <script lang="ts">
-    type Props = {
-        height: string;
-    };
+    import type { SVGAttributes } from "svelte/elements";
 
-    const { height }: Props = $props();
+    type Props = SVGAttributes<SVGSVGElement>;
+
+    const props: Props = $props();
 </script>
 
 <svg
@@ -11,7 +11,7 @@
     xmlns:xlink="http://www.w3.org/1999/xlink"
     version="1.1"
     viewBox="0 0 1 1"
-    {height}
+    {...props}
 >
     <circle cx=".25" cy=".1" r=".075" />
     <circle cx=".50" cy=".1" r=".075" />

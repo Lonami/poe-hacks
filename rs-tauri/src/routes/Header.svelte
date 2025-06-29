@@ -30,7 +30,6 @@
         display: flex;
         align-items: center;
         box-shadow: 0 0 2px #000;
-        margin-bottom: 1px;
         padding-right: 0.5em;
     }
 
@@ -47,14 +46,7 @@
         display: flex;
     }
     a {
-        padding: 0.25em 0.5em;
         text-decoration: none;
         color: #000;
-        box-shadow: inset -1px -1px 2px #000;
-        transition: box-shadow 200ms cubic-bezier(0, 1, 0.5, 2);
-    }
-    .active {
-        border: none;
-        box-shadow: inset 1px 1px 2px #000;
     }
 </style>

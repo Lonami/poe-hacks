@@ -1,19 +1,27 @@
-import { BLOCK_CLICK_VARIABLES, BLOCK_SCROLL_VARIABLES, BLOCK_WHEN_CONDITIONS, BLOCK_WHEN_VARIABLES } from "./constants";
+import { BLOCK_CLICK_VARIABLES, BLOCK_SCROLL_VARIABLES, BLOCK_STAT_CONDITIONS, BLOCK_STAT_VARIABLES } from "./constants";
 import type { BlockDefinition } from "./types";
 
 export const serializeBlockDefinition = (block: BlockDefinition): string => {
     switch (block.kind) {
-        case "when":
+        case "stat":
             return `${block.kind} ${block.variable} ${block.condition} ${block.value}`
+        case "key":
+            return `${block.kind} ${block.value}`
+        case "mouse":
+            return `${block.kind} ${block.variable}`
         case "press":
             return `${block.kind} ${block.value}`
         case "type":
             return `${block.kind} ${block.value}`
+        case "disconnect":
+            return `${block.kind}`
         case "click":
-            return `${block.kind} ${block.variable} ${block.value}`
+            return `${block.kind} ${block.variable}`
         case "scroll":
-            return `${block.kind} ${block.variable} ${block.value}`
+            return `${block.kind} ${block.variable}`
         case "cooldown":
+            return `${block.kind} ${block.value}`
+        case "delay":
             return `${block.kind} ${block.value}`
     }
 }
@@ -25,8 +33,8 @@ const makeEnumParser = <T>(legalValues: readonly T[]) => (text: unknown): T => {
     return text as T
 }
 
-const parseWhenVariable = makeEnumParser(BLOCK_WHEN_VARIABLES)
-const parseWhenCondition = makeEnumParser(BLOCK_WHEN_CONDITIONS)
+const parseWhenVariable = makeEnumParser(BLOCK_STAT_VARIABLES)
+const parseWhenCondition = makeEnumParser(BLOCK_STAT_CONDITIONS)
 const parseClickVariable = makeEnumParser(BLOCK_CLICK_VARIABLES)
 const parseScrollVariable = makeEnumParser(BLOCK_SCROLL_VARIABLES)
 const parseString = (text: unknown): string => {
@@ -40,17 +48,25 @@ export const deserializeBlockDefinition = (text: string): BlockDefinition => {
     const parts = text.split(' ');
     const kind = parts[0] as BlockDefinition['kind'];
     switch (kind) {
-        case "when":
+        case "stat":
             return { kind, variable: parseWhenVariable(parts[1]), condition: parseWhenCondition(parts[2]), value: parseString(parts[3]) }
+        case "key":
+            return { kind, value: parseString(parts[1]) }
+        case "mouse":
+            return { kind, variable: parseClickVariable(parts[1]) }
         case "press":
             return { kind, value: parseString(parts[1]) }
         case "type":
             return { kind, value: text.slice(kind.length + 1) }
+        case "disconnect":
+            return { kind }
         case "click":
-            return { kind, variable: parseClickVariable(parts[1]), value: parseString(parts[2]) }
+            return { kind, variable: parseClickVariable(parts[1]) }
         case "scroll":
-            return { kind, variable: parseScrollVariable(parts[1]), value: parseString(parts[2]) }
+            return { kind, variable: parseScrollVariable(parts[1]) }
         case "cooldown":
+            return { kind, value: parseString(parts[1]) }
+        case "delay":
             return { kind, value: parseString(parts[1]) }
         default:
             const assertNever: never = kind

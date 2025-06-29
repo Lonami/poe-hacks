@@ -1,44 +1,76 @@
 import type {
     BLOCK_CLICK_VARIABLES,
     BLOCK_SCROLL_VARIABLES,
-    BLOCK_WHEN_CONDITIONS,
-    BLOCK_WHEN_VARIABLES,
+    BLOCK_STAT_CONDITIONS,
+    BLOCK_STAT_VARIABLES,
 } from "./constants"
 
 export type Health = {
     hp: number,
-    max_hp: number,
-    unreserved_hp: number,
+    maxHp: number,
+    unreservedHp: number,
     es: number,
-    max_es: number,
+    maxEs: number,
 }
 
 export type Mana = {
     mana: number,
-    max_mana: number,
-    unreserved_mana: number,
+    maxMana: number,
+    unreservedMana: number,
 }
 
-export type BlockDefinition = { value: string } & (
+export type BlockDefinition =
+    // Events
     | {
-        kind: 'when',
-        variable: (typeof BLOCK_WHEN_VARIABLES)[number],
-        condition: (typeof BLOCK_WHEN_CONDITIONS)[number],
+        kind: 'stat',
+        variable: (typeof BLOCK_STAT_VARIABLES)[number],
+        condition: (typeof BLOCK_STAT_CONDITIONS)[number],
+        value: string,
     }
-    | { kind: 'press' }
-    | { kind: 'type' }
+    | {
+        kind: 'key',
+        value: string,
+    }
+    | {
+        kind: 'mouse',
+        variable: (typeof BLOCK_CLICK_VARIABLES)[number],
+    }
+    // Actions
+    | {
+        kind: 'press',
+        value: string,
+    }
+    | {
+        kind: 'type',
+        value: string,
+    }
+    | {
+        kind: 'disconnect',
+    }
     | {
         kind: 'click',
-        variable: (typeof BLOCK_CLICK_VARIABLES)[number]
+        variable: (typeof BLOCK_CLICK_VARIABLES)[number],
     }
     | {
         kind: 'scroll',
-        variable: (typeof BLOCK_SCROLL_VARIABLES)[number]
+        variable: (typeof BLOCK_SCROLL_VARIABLES)[number],
     }
-    | { kind: 'cooldown' }
-)
+    // Timing
+    | {
+        kind: 'cooldown',
+        value: string,
+    }
+    | {
+        kind: 'delay',
+        value: string,
+    }
 
 export type RuleDefinition = {
     name: string
     blocks: BlockDefinition[]
+}
+
+export type ProfileDefinition = {
+    name: string
+    rules: RuleDefinition[]
 }

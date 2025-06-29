@@ -18,9 +18,9 @@
         <clipPath id="cut-off-mana">
             <rect
                 x="0"
-                y={(mana.max_mana - mana.mana) / mana.max_mana}
+                y={(mana.maxMana - mana.mana) / mana.maxMana}
                 width="1"
-                height={1 - (mana.max_mana - mana.mana) / mana.max_mana}
+                height={1 - (mana.maxMana - mana.mana) / mana.maxMana}
             />
         </clipPath>
     </defs>
