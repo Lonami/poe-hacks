@@ -92,12 +92,18 @@ pub enum BlockDefinition {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RuleDefinition {
-    name: String,
-    blocks: Vec<BlockDefinition>,
+    pub name: String,
+    pub blocks: Vec<BlockDefinition>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProfileDefinition {
-    name: String,
-    rules: Vec<BlockDefinition>,
+    pub name: String,
+    pub active: bool,
+    pub rules: Vec<BlockDefinition>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppState {
+    pub profiles: Vec<ProfileDefinition>,
 }

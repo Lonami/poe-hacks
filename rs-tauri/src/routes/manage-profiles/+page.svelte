@@ -1,14 +1,26 @@
 <script lang="ts">
-    const profiles = ["default", "SSF", "HC VFoS"];
+    import { G } from "$lib/globals.svelte";
 </script>
 
 <ul>
-    {#each profiles as profile, i}
+    {#each G.profiles as profile, i}
         <li>
-            <input type="checkbox" checked={!i} disabled />
-            <input type="text" value={profile} disabled={!i} /> ({i * 3} rules)
-            <button>Duplicate</button>
-            <button class="danger" disabled={!i}>Delete</button>
+            <input type="checkbox" checked={profile.active} disabled />
+            <input type="text" bind:value={profile.name} /> ({profile.rules
+                .length} rule{[profile.rules.length === 1 ? "" : "s"]})
+            <button
+                onclick={() => {
+                    G.profiles.splice(i + 1, 0, {
+                        ...structuredClone($state.snapshot(profile)),
+                        active: false,
+                    });
+                }}>Duplicate</button
+            >
+            <button
+                class="danger"
+                disabled={G.profiles.length === 1}
+                onclick={() => G.profiles.splice(i, 1)}>Delete</button
+            >
         </li>
     {/each}
 </ul>

@@ -3,8 +3,10 @@
   import BlockPalette from "./BlockPalette.svelte";
   import type { RuleDefinition } from "$lib/types";
   import { mkGetObjectKey } from "$lib/keys";
+  import { G } from "$lib/globals.svelte";
 
-  let ruleDefinitions = $state<RuleDefinition[]>([]);
+  const idx = $derived(G.profiles.findIndex((p) => p.active));
+  const ruleDefinitions = $derived(G.profiles[idx].rules);
 
   const ruleId = mkGetObjectKey<RuleDefinition>();
 </script>

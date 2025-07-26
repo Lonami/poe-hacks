@@ -72,5 +72,6 @@ export type RuleDefinition = {
 
 export type ProfileDefinition = {
     name: string
+    active: boolean
     rules: RuleDefinition[]
 }

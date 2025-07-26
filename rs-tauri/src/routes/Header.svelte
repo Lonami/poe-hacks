@@ -1,5 +1,6 @@
 <script lang="ts">
     import { ROUTES } from "$lib/constants";
+    import { G } from "$lib/globals.svelte";
     type Props = {
         pathname: string;
     };
@@ -17,10 +18,35 @@
             {/each}
         </ul>
     </nav>
+
+    <div
+        title={G.profilesSynced ? "Profiles saved" : "Profiles failed to save"}
+    >
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            version="1.1"
+            viewBox="0 0 1 1"
+            style="--status: var(--status-{G.profilesSynced ? 'ok' : 'err'})"
+            height={"16px"}
+        >
+            <circle cx=".5" cy=".5" r=".5" />
+        </svg>
+    </div>
+
     <label>
         Profile:
-        <select>
-            <option>default</option>
+        <select
+            value={G.profiles.find((p) => p.active)?.name}
+            onchange={(e) => {
+                for (const p of G.profiles) {
+                    p.active = p.name === e.currentTarget.value;
+                }
+            }}
+        >
+            {#each G.profiles as profile}
+                <option value={profile.name}>{profile.name}</option>
+            {/each}
         </select>
     </label>
 </header>
@@ -31,8 +57,8 @@
         align-items: center;
         box-shadow: 0 0 2px #000;
         padding-right: 0.5em;
+        gap: 1em;
     }
-
     nav {
         flex-grow: 1;
     }
@@ -44,6 +70,12 @@
     }
     li {
         display: flex;
+    }
+    div {
+        display: flex;
+    }
+    circle {
+        fill: var(--status);
     }
     a {
         text-decoration: none;

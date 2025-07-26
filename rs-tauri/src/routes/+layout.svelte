@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
     import { ROUTES } from "$lib/constants";
+    import { G } from "$lib/globals.svelte";
     import { fly } from "svelte/transition";
     import Header from "./Header.svelte";
     import { flyIn } from "$lib/transition";
@@ -25,6 +27,19 @@
 
     const carousselIn: typeof flyIn = (node, props) =>
         flyIn(node, { ...props, x });
+
+    $effect(() => {
+        G.profiles = page.data.profiles;
+    });
+
+    $effect(() => {
+        (async () => {
+            console.log("time to sync", $state.snapshot(G.profiles));
+            G.profilesSynced = await invoke("set_profiles", {
+                profiles: G.profiles,
+            });
+        })();
+    });
 </script>
 
 <Header pathname={page.url.pathname} />

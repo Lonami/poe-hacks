@@ -16,4 +16,7 @@
     --accent-mana-bar: #03a;
 
     --accent-grip-area: #555;
+
+    --status-ok: #0a0;
+    --status-err: #a80;
 }
