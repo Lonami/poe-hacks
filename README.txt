@@ -1,3 +1,7 @@
+Moved to https://codeberg.org/Lonami/poe-hacks. The GitHub repository may be deleted in the future.
+
+---
+
 poe-hacks
 =========
 
